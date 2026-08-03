@@ -9,16 +9,31 @@ from .core import Err, Ok, Parse
 
 
 def regex_parse(
-    pattern: str = r"```mswea_bash_command\s*\n(.*?)\n```",
+    pattern: str | None = None,
     error_template: str = "Found {count} actions. Expected exactly 1.",
 ) -> Parse:
-    """Parse a single bash command from markdown code blocks."""
+    """Parse a single bash command from markdown code blocks.
+
+    Accepts ```mswea_bash_command, ```bash, or ```sh blocks (in that priority order).
+    """
+    if pattern is None:
+        # Try multiple block types in order of specificity
+        patterns = [
+            r"```mswea_bash_command\s*\n(.*?)\n```",
+            r"```bash\s*\n(.*?)\n```",
+            r"```sh\s*\n(.*?)\n```",
+            r"```\s*\n(.*?)\n```",  # fallback: any code block
+        ]
+    else:
+        patterns = [pattern]
 
     def _parse(raw: str) -> Ok[str] | Err[str]:
-        matches = re.findall(pattern, raw, re.DOTALL)
-        if len(matches) == 1:
-            return Ok(matches[0].strip())
-        return Err(error_template.format(count=len(matches)))
+        for p in patterns:
+            matches = re.findall(p, raw, re.DOTALL)
+            if matches:
+                # Return the first match from the most specific pattern that worked
+                return Ok(matches[0].strip())
+        return Err(error_template.format(count=0))
 
     return _parse
 

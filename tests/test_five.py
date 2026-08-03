@@ -87,14 +87,16 @@ class TestRegexParse:
         assert "0 actions" in result.error
 
     def test_multiple_commands(self):
+        """Multiple blocks → takes the first one (graceful degradation)."""
         p = regex_parse()
         raw = (
             "```mswea_bash_command\necho one\n```\n"
             "```mswea_bash_command\necho two\n```"
         )
         result = p(raw)
-        assert isinstance(result, Err)
-        assert "2 actions" in result.error
+        # Takes first match — graceful degradation on multi-block responses
+        assert isinstance(result, Ok)
+        assert result.value == "echo one"
 
     def test_custom_pattern(self):
         p = regex_parse(pattern=r"```bash\n(.*?)\n```")
@@ -102,6 +104,29 @@ class TestRegexParse:
         result = p(raw)
         assert isinstance(result, Ok)
         assert result.value == "echo hi"
+
+    def test_accepts_bash_blocks(self):
+        """Model uses ```bash``` instead of ```mswea_bash_command``` — still works."""
+        p = regex_parse()
+        raw = "```bash\necho hello\n```"
+        result = p(raw)
+        assert isinstance(result, Ok)
+        assert result.value == "echo hello"
+
+    def test_accepts_sh_blocks(self):
+        p = regex_parse()
+        raw = "```sh\necho hi\n```"
+        result = p(raw)
+        assert isinstance(result, Ok)
+        assert result.value == "echo hi"
+
+    def test_thought_with_bash_block(self):
+        """Model includes THOUGHT before the code block."""
+        p = regex_parse()
+        raw = "THOUGHT: I will run this command\n\n```bash\necho hello\n```"
+        result = p(raw)
+        assert isinstance(result, Ok)
+        assert result.value == "echo hello"
 
     def test_multiline_command(self):
         p = regex_parse()
