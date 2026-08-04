@@ -1,4 +1,4 @@
-"""Tests for five-function algebra."""
+"""Tests for four-function algebra."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ import json
 import tempfile
 from pathlib import Path
 
-from five.core import Err, Ok, Result, run, save_trajectory
-from five.parse import regex_parse, toolcall_parse
-from five.env import local_env
-from five.model import retry_invoke, AbortError
+from four.core import Err, Ok, Result, run, save_trajectory
+from four.parse import regex_parse, toolcall_parse
+from four.env import local_env
+from four.model import retry_invoke, AbortError
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────

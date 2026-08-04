@@ -1,4 +1,4 @@
-"""Five-function algebra for agents.
+"""Four-function algebra for agents.
 
 invoke   : G   -- messages → Result[raw]
 parse    : V1  -- raw → Result[list[action]]
@@ -55,7 +55,7 @@ def run(
     max_steps: int = 100,
     max_format_errors: int = 3,
 ) -> Path:
-    """Five-function evaluator.
+    """Four-function evaluator.
 
     Loop: (G → V1 → V2*)*, repeat until V2 exits or max_steps.
 
