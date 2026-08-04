@@ -103,7 +103,8 @@ def litellm_invoke(
                 kwargs["tools"] = tools
 
             response = litellm.completion(**kwargs)
-            content = response.choices[0].message.content or ""
+            msg = response.choices[0].message
+            content = msg.content or getattr(msg, "reasoning_content", "") or ""
             return Ok(content)
 
         except Exception as e:
@@ -137,7 +138,8 @@ def litellm_toolcall_invoke(
 
             tool_calls = response.choices[0].message.tool_calls or []
             if not tool_calls:
-                content = response.choices[0].message.content or ""
+                msg = response.choices[0].message
+                content = msg.content or getattr(msg, "reasoning_content", "") or ""
                 return Ok(content)
 
             actions = []

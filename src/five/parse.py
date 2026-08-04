@@ -19,11 +19,15 @@ def regex_parse(
     """
     if pattern is None:
         # Try multiple block types in order of specificity
+        # Handles both ```bash\ncommand\n``` and ```bash command```
         patterns = [
-            r"```mswea_bash_command\s*\n(.*?)\n```",
-            r"```bash\s*\n(.*?)\n```",
+            r"```mswea_bash_command\s*(?:\n|\s)(.*?)(?:\n|\s)```",
+            r"```bash\s+(.*?)```",           # single-line: ```bash command```
+            r"```bash\s*\n(.*?)\n```",       # multi-line: ```bash\ncommand\n```
+            r"```sh\s+(.*?)```",
             r"```sh\s*\n(.*?)\n```",
-            r"```\s*\n(.*?)\n```",  # fallback: any code block
+            r"```\s+(.*?)```",
+            r"```\s*\n(.*?)\n```",           # fallback: any code block
         ]
     else:
         patterns = [pattern]
