@@ -75,3 +75,11 @@ def toolcall_parse() -> Parse:
         return Ok(commands)
 
     return _parse
+
+
+def toolcall_response_parse() -> Parse:
+    """Parse JSON from Responses API function_call items.
+
+    Same shape as toolcall_parse — the difference is in G, not V1.
+    """
+    return toolcall_parse()
