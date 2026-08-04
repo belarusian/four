@@ -55,18 +55,3 @@ def local_env(
         return Ok(observation)
 
     return _validate
-
-
-def format_fix(
-    error: str,
-    messages: list[dict],
-    template: str = "Your last response had a format error: {error}\n\nPlease respond with exactly one bash command in the expected format.",
-) -> dict | None:
-    """Implement G' — format a parse error as a retry message.
-
-    Returns a message to append to history, or None to stop.
-    """
-    return {
-        "role": "user",
-        "content": template.format(error=error),
-    }

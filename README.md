@@ -1,17 +1,16 @@
 # five
 
-Five functions compose. The loop is the evaluator.
+Four functions compose. The loop is the evaluator.
 
 An agent that runs bash commands. A generator that produces notebooks. A tool that writes Python code. Same loop. Different functions.
 
 ```python
-from five import run, litellm_invoke, regex_parse, local_env, format_fix, save_trajectory
+from five import run, litellm_invoke, regex_parse, local_env, save_trajectory
 
 run(
     G=litellm_invoke("anthropic/claude-sonnet-4-5-20250929"),
     V1=regex_parse(),
     V2=local_env(),
-    G_prime=format_fix,
     emit=save_trajectory(),
     system="You are a helpful assistant that executes bash commands.",
     prompt="Find all Python files in /tmp and count lines in each",
@@ -23,58 +22,60 @@ run(
 
 ```
 invoke   : G   -- messages → Result[raw]
-parse    : V1  -- raw → Result[action]
+parse    : V1  -- raw → Result[list[action]]
 validate : V2  -- action → Result[observation | Exit]
-fix      : G'  -- (error, messages) → message | None
 emit     : IO  -- (messages, outcome) → Path
 ```
 
-The loop chains them: `(G → V1 → (G' → G)* → V2)* → emit`
+The loop chains them: `(G → V1 → V2*)* → emit`
 
-Each function is first-class. Swap the model. Change the parser. Run commands in a container. Save trajectories differently. The loop doesn't know what it's evaluating — it only knows that every phase returns `Ok(value)` or `Err(reason)`. Errors flow through the pipeline. No try/catch. No state machines. Five functions compose.
+Each function is first-class. Swap the model. Change the parser. Run commands in a container. Save trajectories differently. The loop doesn't know what it's evaluating — it only knows that every phase returns `Ok(value)` or `Err(reason)`. Errors flow through the pipeline. No try/catch. No state machines. Four functions compose.
 
 ## The loop
 
-The entire evaluator is 25 lines:
+The entire evaluator is 22 lines:
 
 ```python
-def run(G, V1, V2, G_prime, emit, system, prompt, max_steps=100):
+def run(G, V1, V2, emit, system, prompt, max_steps=100, max_format_errors=3):
     messages = [{"role": "system", "content": system},
                 {"role": "user", "content": prompt}]
+    consecutive_format_errors = 0
 
     for step in range(max_steps):
         raw = G(messages)
         if isinstance(raw, Err):
             return emit(messages, f"model_error: {raw.error}")
 
-        action = V1(raw.value)
-        if isinstance(action, Err):
-            fix = G_prime(action.error, messages)
-            if fix:
-                messages.append(fix)
-                continue
-            return emit(messages, f"format_error: {action.error}")
+        actions = V1(raw.value)
+        if isinstance(actions, Err):
+            consecutive_format_errors += 1
+            if 0 < max_format_errors <= consecutive_format_errors:
+                return emit(messages, f"repeated_format_error: {actions.error}")
+            messages.append({"role": "user", "content": f"Format error: {actions.error}..."})
+            continue
 
-        result = V2(action.value)
-        if isinstance(result, Err):
-            return emit(messages, result.error)
-
-        messages.append(result.value)
+        consecutive_format_errors = 0
+        for action in actions.value:
+            result = V2(action)
+            if isinstance(result, Err):
+                return emit(messages, result.error)
+            messages.append(result.value)
 
     return emit(messages, "max_steps_reached")
 ```
 
-That's it. No config files. No YAML. No SDK. No Pydantic models. No Jinja2 templates baked into the code. Just five functions that take and return well-typed values, chained in a loop.
+That's it. No config files. No YAML. No SDK. No Pydantic models. No Jinja2 templates baked into the code. Just four functions that take and return well-typed values, chained in a loop.
 
 ## What it replaces
 
 | mini-swe-agent | five |
 |---|---|
-| YAML config with 40+ parameters | Five function arguments |
+| YAML config with 40+ parameters | Four function arguments |
 | Pydantic model configs | Plain functions |
 | Jinja2 templates in config | Templates passed as strings |
 | FormatError + InterruptAgentFlow hierarchy | `Ok` \| `Err` |
-| 1000+ lines of boilerplate | 25-line loop |
+| Inner retry loop for format errors | Format error as user message, outer loop continues |
+| 1000+ lines of boilerplate | 22-line loop |
 
 Same capability. Different shape.
 
@@ -83,16 +84,14 @@ Same capability. Different shape.
 **G — invoke.** Queries the LLM. Returns `Ok(text)` or `Err(reason)`.
 - `litellm_invoke()` — plain text with markdown code blocks
 - `litellm_toolcall_invoke()` — structured tool calls
+- `retry_invoke(fn)` — wraps any G with exponential backoff retry
 
-**V1 — parse.** Extracts the action from raw output. Returns `Ok(command)` or `Err(reason)`.
-- `regex_parse()` — extracts ```mswea_bash_command blocks
-- `toolcall_parse()` — parses JSON tool call payloads
+**V1 — parse.** Extracts actions from raw output. Returns `Ok(list[command])` or `Err(reason)`.
+- `regex_parse()` — extracts ```mswea_bash_command, ```bash, or ```sh blocks (returns all matches)
+- `toolcall_parse()` — parses JSON tool call payloads (returns all bash commands)
 
-**V2 — validate.** Executes the action. Returns `Ok(observation)` or `Err(exit)`.
+**V2 — validate.** Executes each action. Returns `Ok(observation)` or `Err(exit)`.
 - `local_env()` — subprocess execution with output truncation and exit signal detection
-
-**G' — fix.** Formats errors as retry messages. Returns `message` to re-prompt, or `None` to stop.
-- `format_fix()` — wraps parse errors in user messages
 
 **emit — IO.** Saves the trajectory. Returns `Path`.
 - `save_trajectory()` — JSON files with outcome and full message history
@@ -109,13 +108,16 @@ V1=toolcall_parse(),
 # Container execution instead of local
 V2=docker_env(image="python:3.12"),
 
-# Stop on format error instead of retrying
-G_prime=lambda err, msgs: None,
+# Retry on transient errors
+G=retry_invoke(litellm_invoke("openai/gpt-4o")),
+
+# Abort after 2 format errors instead of 3
+max_format_errors=2,
 ```
 
 ## The same algebra, different domains
 
-The five-function loop generates notebooks, agents, Python code, and CLI tools. The only difference is what V2 validates and what emit produces:
+The four-function loop generates notebooks, agents, Python code, and CLI tools. The only difference is what V2 validates and what emit produces:
 
 | Domain | V2 validates | emit produces |
 |---|---|---|
@@ -126,20 +128,19 @@ The five-function loop generates notebooks, agents, Python code, and CLI tools. 
 
 The loop doesn't know what it's evaluating. It only chains `Result` types.
 
-## Why five?
+## Why four?
 
-Five is the minimum. Remove any one and the loop breaks:
+Four is the minimum. Remove any one and the loop breaks:
 
 - No **G** → nothing to evaluate
 - No **V1** → can't extract actions from raw text
 - No **V2** → can't execute or observe
-- No **G'** → can't recover from format errors
 - No **emit** → can't persist results
 
-Add a sixth and it's redundant — the loop already closes.
+Format recovery is built into the loop — no separate function needed.
 
 ## Philosophy
 
-The framework doesn't call itself category theory. It calls itself algebra. Five functions compose. The loop is the evaluator.
+The framework doesn't call itself category theory. It calls itself algebra. Four functions compose. The loop is the evaluator.
 
 #agenticcoding #functional-programming #python #llm #agents #monads

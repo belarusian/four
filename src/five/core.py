@@ -1,12 +1,14 @@
 """Five-function algebra for agents.
 
 invoke   : G   -- messages → Result[raw]
-parse    : V1  -- raw → Result[action]
+parse    : V1  -- raw → Result[list[action]]
 validate : V2  -- action → Result[observation | Exit]
-fix      : G'  -- (error, messages) → message | None
 emit     : IO  -- (messages, outcome) → Path
 
-The loop: (G → V1 → (G' → G)* → V2)* → emit
+The loop: (G → V1 → V2*)* → emit
+
+Format errors are appended as user messages — no inner retry loop.
+Consecutive format errors are tracked and abort after N failures.
 """
 
 from __future__ import annotations
@@ -36,9 +38,8 @@ Result: TypeAlias = Union[Ok[T], Err[E]]
 # ── Signatures ──────────────────────────────────────────────────────────────
 
 Invoke = Callable[[list[dict]], Result[str, str]]
-Parse = Callable[[str], Result[str, str]]
+Parse = Callable[[str], Result[list[str], str]]
 Validate = Callable[[str], Result[dict, str]]
-Fix = Callable[[str, list[dict]], dict | None]
 Emit = Callable[[list[dict], str], Path]
 
 
@@ -48,26 +49,30 @@ def run(
     G: Invoke,
     V1: Parse,
     V2: Validate,
-    G_prime: Fix,
     emit: Emit,
     system: str,
     prompt: str,
     max_steps: int = 100,
+    max_format_errors: int = 3,
 ) -> Path:
     """Five-function evaluator.
 
-    Loop: (G → V1 → (G' → G)* → V2)*, repeat until V2 exits or max_steps.
+    Loop: (G → V1 → V2*)*, repeat until V2 exits or max_steps.
 
     G  → query LLM, get raw text
-    V1 → extract bash action from text
-    G' → on V1 failure: format error as retry message, loop back to G
-    V2 → execute action, get observation or Exit
+    V1 → extract bash actions from text (returns list)
+    V2 → execute each action, get observation or Exit
     emit → save trajectory
+
+    Format errors are appended as user messages and the loop continues.
+    Consecutive format errors beyond max_format_errors abort the loop.
     """
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": prompt},
     ]
+
+    consecutive_format_errors = 0
 
     for step in range(max_steps):
         # G: invoke
@@ -76,20 +81,25 @@ def run(
             return emit(messages, f"model_error: {raw.error}")
 
         # V1: parse
-        action = V1(raw.value)
-        if isinstance(action, Err):
-            fix = G_prime(action.error, messages)
-            if fix:
-                messages.append(fix)
-                continue
-            return emit(messages, f"format_error: {action.error}")
+        actions = V1(raw.value)
+        if isinstance(actions, Err):
+            consecutive_format_errors += 1
+            if 0 < max_format_errors <= consecutive_format_errors:
+                return emit(messages, f"repeated_format_error: {actions.error}")
+            messages.append({
+                "role": "user",
+                "content": f"Format error: {actions.error}. Please respond with exactly one bash command in the expected format.",
+            })
+            continue
 
-        # V2: validate / execute
-        result = V2(action.value)
-        if isinstance(result, Err):
-            return emit(messages, result.error)
+        consecutive_format_errors = 0
 
-        messages.append(result.value)
+        # V2: validate / execute each action
+        for action in actions.value:
+            result = V2(action)
+            if isinstance(result, Err):
+                return emit(messages, result.error)
+            messages.append(result.value)
 
     return emit(messages, "max_steps_reached")
 
