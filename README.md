@@ -27,9 +27,9 @@ validate : V2  -- action → Result[observation | Exit]
 emit     : IO  -- (messages, outcome) → Path
 ```
 
-The loop chains them: `(G → V1 → V2*)* → emit`
+The loop chains them: `(G → V1 → [V2, V2, ...])* → emit`
 
-Each function is first-class. Swap the model. Change the parser. Run commands in a container. Save trajectories differently. The loop doesn't know what it's evaluating — it only knows that every phase returns `Ok(value)` or `Err(reason)`. Errors flow through the pipeline. No try/catch. No state machines. Four functions compose.
+Each step: G queries the model, V1 extracts all actions, V2 executes each one. If V1 fails, the error becomes a user message and the loop continues — the model sees its mistake and self-corrects on the next turn. Four functions compose.
 
 ## The loop
 

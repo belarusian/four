@@ -51,15 +51,14 @@ def retry_invoke(
         max_attempts = int(os.getenv("FIVE_MODEL_RETRY_STOP_AFTER_ATTEMPT", "10"))
 
     abort_types = (AbortError,)
+    retrying = Retrying(
+        reraise=True,
+        stop=stop_after_attempt(max_attempts),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        retry=retry_if_not_exception_type(abort_types),
+    )
 
     def _invoke(messages: list[dict]) -> Ok[str] | Err[str]:
-        retrying = Retrying(
-            reraise=True,
-            stop=stop_after_attempt(max_attempts),
-            wait=wait_exponential(multiplier=1, min=4, max=60),
-            retry=retry_if_not_exception_type(abort_types),
-        )
-
         def _call() -> Ok[str] | Err[str]:
             result = invoke_fn(messages)
             if isinstance(result, Err):
