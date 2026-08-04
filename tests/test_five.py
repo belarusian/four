@@ -8,7 +8,8 @@ from pathlib import Path
 
 from five.core import Err, Ok, Result, run, save_trajectory
 from five.parse import regex_parse, toolcall_parse
-from five.env import local_env, format_fix
+from five.env import local_env
+from five.model import retry_invoke, AbortError
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -20,23 +21,20 @@ def _run_and_check(
     max_steps: int = 5,
     system: str = "test",
     prompt: str = "Say hello",
-    G_prime=None,
+    max_format_errors: int = 3,
     check=None,
     expected_outcome=None,
 ):
     """Run the loop and return parsed trajectory inside temp dir context."""
-    if G_prime is None:
-        G_prime = format_fix
-
     path = run(
         G=G,
         V1=regex_parse(),
         V2=local_env(),
-        G_prime=G_prime,
         emit=save_trajectory(tmpdir),
         system=system,
         prompt=prompt,
         max_steps=max_steps,
+        max_format_errors=max_format_errors,
     )
 
     data = json.loads(path.read_text())
@@ -78,7 +76,7 @@ class TestRegexParse:
         raw = "```mswea_bash_command\necho hello\n```"
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == "echo hello"
+        assert result.value == ["echo hello"]
 
     def test_empty_response(self):
         p = regex_parse()
@@ -87,23 +85,22 @@ class TestRegexParse:
         assert "0 actions" in result.error
 
     def test_multiple_commands(self):
-        """Multiple blocks → takes the first one (graceful degradation)."""
+        """Multiple blocks → returns all commands as a list."""
         p = regex_parse()
         raw = (
             "```mswea_bash_command\necho one\n```\n"
             "```mswea_bash_command\necho two\n```"
         )
         result = p(raw)
-        # Takes first match — graceful degradation on multi-block responses
         assert isinstance(result, Ok)
-        assert result.value == "echo one"
+        assert result.value == ["echo one", "echo two"]
 
     def test_custom_pattern(self):
         p = regex_parse(pattern=r"```bash\n(.*?)\n```")
         raw = "```bash\necho hi\n```"
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == "echo hi"
+        assert result.value == ["echo hi"]
 
     def test_accepts_bash_blocks(self):
         """Model uses ```bash``` instead of ```mswea_bash_command``` — still works."""
@@ -111,14 +108,14 @@ class TestRegexParse:
         raw = "```bash\necho hello\n```"
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == "echo hello"
+        assert result.value == ["echo hello"]
 
     def test_accepts_sh_blocks(self):
         p = regex_parse()
         raw = "```sh\necho hi\n```"
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == "echo hi"
+        assert result.value == ["echo hi"]
 
     def test_thought_with_bash_block(self):
         """Model includes THOUGHT before the code block."""
@@ -126,15 +123,15 @@ class TestRegexParse:
         raw = "THOUGHT: I will run this command\n\n```bash\necho hello\n```"
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == "echo hello"
+        assert result.value == ["echo hello"]
 
     def test_multiline_command(self):
         p = regex_parse()
         raw = "```mswea_bash_command\ncat <<'EOF'\nline1\nline2\nEOF\n```"
         result = p(raw)
         assert isinstance(result, Ok)
-        assert "line1" in result.value
-        assert "line2" in result.value
+        assert "line1" in result.value[0]
+        assert "line2" in result.value[0]
 
 
 # ── toolcall_parse ──────────────────────────────────────────────────────────
@@ -150,7 +147,23 @@ class TestToolcallParse:
         }])
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == "echo hi"
+        assert result.value == ["echo hi"]
+
+    def test_multiple_bash_calls(self):
+        """Multiple bash tool calls → returns all commands."""
+        p = toolcall_parse()
+        raw = json.dumps([{
+            "tool_call_id": "1",
+            "name": "bash",
+            "arguments": json.dumps({"command": "echo one"}),
+        }, {
+            "tool_call_id": "2",
+            "name": "bash",
+            "arguments": json.dumps({"command": "echo two"}),
+        }])
+        result = p(raw)
+        assert isinstance(result, Ok)
+        assert result.value == ["echo one", "echo two"]
 
     def test_no_bash_tool(self):
         p = toolcall_parse()
@@ -167,7 +180,7 @@ class TestToolcallParse:
         p = toolcall_parse()
         result = p("not json at all")
         assert isinstance(result, Ok)
-        assert result.value == "not json at all"
+        assert result.value == ["not json at all"]
 
     def test_empty_array(self):
         p = toolcall_parse()
@@ -241,22 +254,6 @@ class TestLocalEnv:
         assert "err" in result.value["content"]
 
 
-# ── format_fix (G') ────────────────────────────────────────────────────────
-
-
-class TestFormatFix:
-    def test_returns_message(self):
-        fix = format_fix("bad format", [])
-        assert isinstance(fix, dict)
-        assert fix["role"] == "user"
-        assert "format error" in fix["content"]
-
-    def test_custom_template(self):
-        tmpl = "ERROR: {error}"
-        fix = format_fix("parse failed", [], template=tmpl)
-        assert fix["content"] == "ERROR: parse failed"
-
-
 # ── save_trajectory (emit) ─────────────────────────────────────────────────
 
 
@@ -284,6 +281,66 @@ class TestSaveTrajectory:
             assert "0001" in files[1].name
 
 
+# ── retry_invoke ────────────────────────────────────────────────────────────
+
+
+class TestRetryInvoke:
+    def test_success_no_retry(self):
+        call_count = 0
+
+        def mock_invoke(messages):
+            nonlocal call_count
+            call_count += 1
+            return Ok("success")
+
+        wrapped = retry_invoke(mock_invoke, max_attempts=3)
+        result = wrapped([])
+        assert isinstance(result, Ok)
+        assert call_count == 1
+
+    def test_retries_on_transient_error(self):
+        call_count = 0
+
+        def mock_invoke(messages):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                return Err("RateLimitError: too many requests")
+            return Ok("success")
+
+        wrapped = retry_invoke(mock_invoke, max_attempts=5)
+        result = wrapped([])
+        assert isinstance(result, Ok)
+        assert call_count == 3
+
+    def test_aborts_on_auth_error(self):
+        call_count = 0
+
+        def mock_invoke(messages):
+            nonlocal call_count
+            call_count += 1
+            return Err("InvalidAPIKeyError: bad key")
+
+        wrapped = retry_invoke(mock_invoke, max_attempts=5)
+        result = wrapped([])
+        assert isinstance(result, Err)
+        assert "abort" in result.error
+        assert call_count == 1
+
+    def test_exhausts_retries(self):
+        call_count = 0
+
+        def mock_invoke(messages):
+            nonlocal call_count
+            call_count += 1
+            return Err("RateLimitError: too many requests")
+
+        wrapped = retry_invoke(mock_invoke, max_attempts=3)
+        result = wrapped([])
+        assert isinstance(result, Err)
+        assert "retry_exhausted" in result.error
+
+
 # ── The loop (run) ─────────────────────────────────────────────────────────
 
 
@@ -299,8 +356,23 @@ class TestRun:
         assert len(tools) >= 1
         assert "hello" in tools[-1]["content"]
 
-    def test_format_error_retry(self):
-        """V1 fails → G' returns fix → loop retries → succeeds."""
+    def test_multiple_actions(self):
+        """V1 returns multiple commands → all are executed in one step."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = _run_and_check(
+                G=lambda msgs: Ok(
+                    "```bash\necho first\n```\n```bash\necho second\n```"
+                ),
+                tmpdir=tmpdir,
+                max_steps=1,
+            )
+        tools = [m for m in data["messages"] if m.get("role") == "tool"]
+        assert len(tools) == 2
+        assert "first" in tools[0]["content"]
+        assert "second" in tools[1]["content"]
+
+    def test_format_error_continues(self):
+        """V1 fails → error appended as user message → loop continues."""
         call_count = 0
 
         def mock_G(messages):
@@ -308,23 +380,27 @@ class TestRun:
             call_count += 1
             if call_count == 1:
                 return Ok("no commands here")
-            # After retry, keep returning valid command (will succeed and continue)
-            return Ok("```mswea_bash_command\necho retry\n```")
+            return Ok("```mswea_bash_command\necho recovered\n```")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             data = _run_and_check(
                 G=mock_G,
                 tmpdir=tmpdir,
-                max_steps=3,  # only 2 useful calls: 1st fails, 2nd succeeds
+                max_steps=3,
             )
+
+        # Format error message was appended
+        format_msgs = [m for m in data["messages"] if "Format error" in m.get("content", "")]
+        assert len(format_msgs) == 1
+        assert format_msgs[0]["role"] == "user"
+
+        # Recovery succeeded
         tools = [m for m in data["messages"] if m.get("role") == "tool"]
         assert len(tools) >= 1
-        assert "retry" in tools[-1]["content"]
+        assert "recovered" in tools[-1]["content"]
 
-        assert call_count == 3  # failed attempt + retry succeeded + one more then max_steps
-
-    def test_format_error_no_fix_stops(self):
-        """G' returns None → loop stops immediately."""
+    def test_repeated_format_error_stops(self):
+        """Consecutive format errors beyond max → abort."""
         call_count = 0
 
         def mock_G(messages):
@@ -332,18 +408,19 @@ class TestRun:
             call_count += 1
             return Ok("no commands")
 
-        def stop_fix(error, messages):
-            return None
-
         with tempfile.TemporaryDirectory() as tmpdir:
-            _run_and_check(
+            data = _run_and_check(
                 G=mock_G,
                 tmpdir=tmpdir,
-                G_prime=stop_fix,
-                expected_outcome="format_error: Found 0 actions. Expected exactly 1.",
+                max_steps=10,
+                max_format_errors=3,
+                expected_outcome="repeated_format_error: Found 0 actions. Expected at least 1.",
             )
 
-        assert call_count == 1
+        # 2 format errors appended, 3rd triggers abort (not appended)
+        format_msgs = [m for m in data["messages"] if "Format error" in m.get("content", "")]
+        assert len(format_msgs) == 2
+        assert call_count == 3
 
     def test_model_error_stops(self):
         """G returns Err → loop stops immediately."""
@@ -409,6 +486,7 @@ class TestRun:
                 max_steps=2,
             )
 
+        # system + user prompt + 2 tool observations
         assert len(data["messages"]) == 4
 
 
@@ -441,3 +519,36 @@ class TestIntegration:
         assert len(tools) == 2
         assert "first" in tools[0]["content"]
         assert "second" in tools[1]["content"]
+
+    def test_format_error_then_recovery(self):
+        """Parse fails, then model recovers on next step."""
+        responses = [
+            "this is not a valid command format",
+            "```bash\necho recovered\n```",
+            "```bash\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n```",
+        ]
+        idx = 0
+
+        def mock_G(messages):
+            nonlocal idx
+            resp = responses[idx] if idx < len(responses) else None
+            idx += 1
+            return Ok(resp) if resp else Err("stopped")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            data = _run_and_check(
+                G=mock_G,
+                tmpdir=tmpdir,
+                max_steps=5,
+                max_format_errors=3,
+                expected_outcome="exit:task_complete",
+            )
+
+        # Format error was appended
+        format_msgs = [m for m in data["messages"] if "Format error" in m.get("content", "")]
+        assert len(format_msgs) == 1
+
+        # Then recovered (exit signal doesn't produce tool observation)
+        tools = [m for m in data["messages"] if m.get("role") == "tool"]
+        assert len(tools) == 1
+        assert "recovered" in tools[0]["content"]

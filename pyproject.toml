@@ -3,7 +3,7 @@ name = "five"
 version = "0.1.0"
 description = "Five-function algebra for agents"
 requires-python = ">=3.10"
-dependencies = ["litellm>=1.0"]
+dependencies = ["litellm>=1.0", "tenacity>=8.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
