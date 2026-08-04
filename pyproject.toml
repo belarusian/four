@@ -1,7 +1,7 @@
 [project]
-name = "five"
+name = "four"
 version = "0.1.0"
-description = "Five-function algebra for agents"
+description = "Four-function algebra for agents"
 requires-python = ">=3.10"
 dependencies = ["litellm>=1.0", "tenacity>=8.0"]
 

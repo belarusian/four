@@ -11,7 +11,7 @@ from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt, 
 
 from .core import Err, Invoke, Ok
 
-logger = logging.getLogger("five.model")
+logger = logging.getLogger("four.model")
 
 BASH_TOOL = {
     "type": "function",

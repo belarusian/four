@@ -1,11 +1,11 @@
-# five
+# four
 
 Four functions compose. The loop is the evaluator.
 
 An agent that runs bash commands. A generator that produces notebooks. A tool that writes Python code. Same loop. Different functions.
 
 ```python
-from five import run, litellm_invoke, regex_parse, local_env, save_trajectory
+from four import run, litellm_invoke, regex_parse, local_env, save_trajectory
 
 run(
     G=litellm_invoke("anthropic/claude-sonnet-4-5-20250929"),
@@ -68,7 +68,7 @@ That's it. No config files. No YAML. No SDK. No Pydantic models. No Jinja2 templ
 
 ## What it replaces
 
-| mini-swe-agent | five |
+| mini-swe-agent | four |
 |---|---|
 | YAML config with 40+ parameters | Four function arguments |
 | Pydantic model configs | Plain functions |
