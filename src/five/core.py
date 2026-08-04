@@ -6,7 +6,7 @@ validate : V2  -- action → Result[observation | Exit]
 fix      : G'  -- (error, messages) → message | None
 emit     : IO  -- (messages, outcome) → Path
 
-The loop: G → V1 → V2 → (G' → G)* → emit
+The loop: (G → V1 → (G' → G)* → V2)* → emit
 """
 
 from __future__ import annotations
@@ -56,10 +56,12 @@ def run(
 ) -> Path:
     """Five-function evaluator.
 
+    Loop: (G → V1 → (G' → G)* → V2)*, repeat until V2 exits or max_steps.
+
     G  → query LLM, get raw text
     V1 → extract bash action from text
+    G' → on V1 failure: format error as retry message, loop back to G
     V2 → execute action, get observation or Exit
-    G' → format error as retry message (or None to stop)
     emit → save trajectory
     """
     messages = [
