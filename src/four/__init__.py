@@ -9,15 +9,10 @@ emit     : IO  -- (messages, outcome) → Path
 """
 
 from .core import Err, Ok, Result, run, save_trajectory
-from .model import (
-    BASH_TOOL,
-    BASH_TOOL_RESPONSE_API,
-    litellm_invoke,
-    litellm_toolcall_invoke,
-    litellm_response_invoke,
-    http_response_invoke,
-    retry_invoke,
-)
+from .core import Err, Ok, Result, run, save_trajectory
+from .retry import AbortError, retry_invoke
+from .chat_model import BASH_TOOL, litellm_invoke, litellm_toolcall_invoke
+from .response_model import BASH_TOOL_RESPONSE_API, http_response_invoke, litellm_response_invoke
 from .parse import regex_parse, toolcall_parse, toolcall_response_parse
 from .env import local_env
 
@@ -27,13 +22,14 @@ __all__ = [
     "Result",
     "run",
     "save_trajectory",
+    "AbortError",
+    "retry_invoke",
     "BASH_TOOL",
     "BASH_TOOL_RESPONSE_API",
     "litellm_invoke",
     "litellm_toolcall_invoke",
     "litellm_response_invoke",
     "http_response_invoke",
-    "retry_invoke",
     "regex_parse",
     "toolcall_parse",
     "toolcall_response_parse",

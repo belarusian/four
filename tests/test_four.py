@@ -9,7 +9,7 @@ from pathlib import Path
 from four.core import Err, Ok, Result, run, save_trajectory
 from four.parse import regex_parse, toolcall_parse
 from four.env import local_env
-from four.model import retry_invoke, AbortError
+from four.retry import retry_invoke, AbortError
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ parse    : V1  -- raw → Result[list[action]]
 validate : V2  -- action → Result[observation | Exit]
 emit     : IO  -- (messages, outcome) → Path
 
-The loop: (G → V1 → V2*)* → emit
+The loop: (G → V1 → [V2, V2, ...])* → emit
 
 Format errors are appended as user messages — no inner retry loop.
 Consecutive format errors are tracked and abort after N failures.
