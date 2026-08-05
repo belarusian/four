@@ -35,10 +35,14 @@ BASH_TOOL = {
 
 class _ChatCompletionsBase(LitellmModel):
     """Base for Chat Completions API implementations."""
+    
+    BASH_TOOL = BASH_TOOL
 
     def _query(self, messages: list[dict]) -> object:
         import litellm
         kwargs = {"model": self.model, "messages": messages, **self.model_kwargs}
+        if hasattr(self, "BASH_TOOL"):
+            kwargs["tools"] = [self.BASH_TOOL]
         return litellm.completion(**kwargs)
 
 
