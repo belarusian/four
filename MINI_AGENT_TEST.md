@@ -4,7 +4,7 @@
 
 mini-swe-agent **works** against our local llama.cpp model at `http://192.168.1.157:8080/v1`.
 
-Our four framework does NOT work the same way.
+Our four framework does NOT work the same way until we fix tool_call_id correlation.
 
 ## How We Got mini-swe-agent Working
 
@@ -79,7 +79,7 @@ mini -c src/minisweagent/config/mini.yaml \
 }
 ```
 
-## The Gap: Why four doesn't work
+## The Gap: Why four doesn't work (INITIAL STATE)
 
 When we call the same model with tool calls, our four framework gets:
 - `tool_calls: None`
@@ -92,9 +92,75 @@ Our `litellm_toolcall_invoke` wrapper does NOT return tool_calls.
 **The question we need to answer:**
 > What is the difference between:
 > 1. mini-swe-agent calling `litellm.completion()` successfully with tool calls
-> 2. our `four.chat_model.LitellmModel._query()` getting text instead of tool_calls
+> 2. our four.chat_model.LitellmModel._query() getting text instead of tool_calls
 >
 > Why does the same API call produce different responses?
+
+## Root Cause Analysis
+
+### Finding: Response Format Mismatch
+
+The model at `:8080` uses a **custom Responses API format**:
+```json
+{
+  "call_id": "call_xxx",
+  "call_type": "execute_bash", 
+  "args": {"command": "..."}
+}
+```
+
+NOT the OpenAI-style tool_calls format.
+
+### Finding: Tool Call ID Correlation
+
+When we use `http_response_invoke()` with `toolcall_parse()`, it returns:
+```json
+[{"tool_call_id": "...", "name": "bash", "arguments": "{...}"}]
+```
+
+This IS the correct format! The issue was that **observations didn't include tool_call_id**.
+
+When V2 returned `{role: "tool", content: "..."}` without `tool_call_id`, the model couldn't correlate results to calls, so it output text instead of structured tool calls on subsequent steps.
+
+## The Fix
+
+We modified two files:
+
+### 1. `src/four/parse.py` - toolcall_parse() returns dicts with tool_call_id
+```python
+def toolcall_parse() -> Parse:
+    def _parse(raw: str) -> Ok[list[dict]] | Err[str]:
+        # Returns [{"command": "...", "tool_call_id": "xxx"}]
+```
+
+### 2. `src/four/core.py` - run() attaches tool_call_id to observations
+```python
+for action in actions.value:
+    command = action["command"] if isinstance(action, dict) else action
+    tool_call_id = action.get("tool_call_id") if isinstance(action, dict) else None
+    result = V2(command)
+    observation = result.value
+    if tool_call_id:
+        observation["tool_call_id"] = tool_call_id  # ← FIX
+    messages.append(observation)
+```
+
+## Verification
+
+With the fix, `--variant responses` now works:
+- All G calls return proper JSON with tool_call_id
+- All tool observations include tool_call_id  
+- Tool results are properly correlated to calls
+
+**Question remaining:**
+> Why did mini-swe-agent work without this explicit tool_call_id passing?
+
+Mini-swe-agent likely handles this differently - either:
+1. The observation template includes tool_call_id automatically
+2. The model receives messages in a different format that preserves correlation
+3. There's something else we're missing about how the message flow works
+
+We need to compare mini-swe-agent's `format_observation_messages()` to understand how it handles this.
 
 ## Files Compared
 
