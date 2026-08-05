@@ -15,7 +15,7 @@ import os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from four.core import run, Ok, Err
-from four.model import retry_invoke, litellm_invoke
+from four.chat_model import litellm_invoke
 from four.parse import regex_parse
 from four.env import local_env
 from four.core import save_trajectory
@@ -46,7 +46,7 @@ def debug_g(messages):
         print(f"  [G step {step_num[0]}] ({elapsed:.1f}s) ERR: {result.error[:100]}")
     return result
 
-g = retry_invoke(debug_g, max_attempts=3)
+g = debug_g
 v1 = regex_parse()
 v2 = local_env()
 emit = save_trajectory(".")
