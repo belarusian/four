@@ -5,9 +5,13 @@ Usage:
 
 Environment variables:
     FIVE_MODEL       Model ID (full path to .gguf)
-    FIVE_BASE_URL    llama.cpp endpoint (default: http://192.168.1.161:8080/v1)
+    FIVE_BASE_URL    llama.cpp endpoint (e.g., http://192.168.1.157:8080/v1)
     FIVE_MAX_TOKENS  Max tokens per response (default: 1024)
     FIVE_MAX_STEPS   Max loop steps (default: 10)
+
+For Responses API test, use examples/test_*_responses.sh scripts.
+
+Trajectory files (trajectory_*.json) are committed to the repo for review.
 """
 
 import os, sys, time
@@ -61,7 +65,6 @@ prompt = sys.argv[1] if len(sys.argv) > 1 else (
     "List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
 )
 
-print(f"Model: {MODEL_ID.split('/')[-1]}")
 print(f"Endpoint: {BASE_URL}")
 print(f"Prompt: {prompt[:120]}")
 print("-" * 60)
