@@ -1,7 +1,6 @@
 #!/bin/bash
-# Test Qwen3.6-27B (Q4) using Responses API
-# Run: ./examples/test_responses.sh
-# Run with custom endpoint: FIVE_BASE_URL=http://192.168.1.XXX:808X/v1 ./examples/test_responses.sh
+# Test Qwen3.6-27B on any endpoint using Responses API with tool calls
+# Run: FIVE_BASE_URL=http://192.168.1.XXX:808X/v1 ./examples/test_responses.sh
 # Output: examples/log_responses.txt
 
 set -e
@@ -12,7 +11,7 @@ LOG="examples/log_responses.txt"
 BASE_URL="${FIVE_BASE_URL:-http://192.168.1.157:8080/v1}"
 PROMPT="List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
 
-echo "Running: Qwen3.6-27B + Responses API on $BASE_URL"
+echo "Running: Responses API on $BASE_URL"
 echo "Prompt: $PROMPT"
 echo "Log: $LOG"
 echo "========================================"
@@ -24,12 +23,11 @@ sys.path.insert(0, 'src')
 
 from four.core import run, Ok, Err
 from four.response_model import http_response_invoke
-from four.parse import toolcall_response_parse
+from four.parse import toolcall_parse
 from four.env import local_env
-from four.core import save_trajectory
 
-MODEL_ID = 'qwen'
-BASE_URL = '$BASE_URL'
+MODEL_ID = 'C:\\\\Users\\\\kodep\\\\models\\\\unsloth\\\\Qwen3.6-27B-MTP-GGUF\\\\Qwen3.6-27B-UD-Q4_K_XL.gguf'
+BASE_URL = '${BASE_URL}'
 PROMPT = '''$PROMPT'''
 
 step_num = [0]
@@ -52,9 +50,8 @@ def debug_g(messages):
     return result
 
 g = debug_g
-v1 = toolcall_response_parse()
+v1 = toolcall_parse()
 v2 = local_env()
-emit = save_trajectory('.')
 
 system = (
     'You are a bash agent. You solve tasks by executing bash commands. '
@@ -62,7 +59,7 @@ system = (
     'When the task is fully done, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'
 )
 
-path = run(G=g, V1=v1, V2=v2, emit=emit, system=system, prompt=PROMPT, max_steps=10)
+path = run(G=g, V1=v1, V2=v2, emit=lambda m, o: open('/dev/null', 'w'), system=system, prompt=PROMPT, max_steps=10)
 
 import json
 data = json.loads(path.read_text())
