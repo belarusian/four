@@ -154,10 +154,15 @@ def run(
 
         # V2: validate / execute each action
         for action in actions.value:
-            result = V2(action)
+            command = action["command"] if isinstance(action, dict) else action
+            tool_call_id = action.get("tool_call_id") if isinstance(action, dict) else None
+            result = V2(command)
             if isinstance(result, Err):
                 return emit(messages, result.error)
-            messages.append(result.value)
+            observation = result.value
+            if tool_call_id:
+                observation["tool_call_id"] = tool_call_id
+            messages.append(observation)
 
     return emit(messages, "max_steps_reached")
 

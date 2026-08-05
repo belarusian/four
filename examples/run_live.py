@@ -106,9 +106,7 @@ def main():
 
         v1 = toolcall_parse()
         system = (
-            "You are a bash agent. You solve tasks by executing bash commands. "
-            "Use the bash tool to execute commands. "
-            "When the task is fully done, call the bash tool with: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
+            "You are a helpful assistant that can interact with a computer."
         )
 
     elif args.variant == "responses":
