@@ -125,7 +125,7 @@ class _ResponsesHTTP(_ResponsesBase):
             return json.loads(resp.read().decode("utf-8"))
 
     def _parse_response(self, response: dict) -> Ok[str] | Err[str]:
-        output = body.get("output", [])
+        output = response.get("output", [])
         tool_calls = [i for i in output if i.get("type") == "function_call"]
 
         if not tool_calls:

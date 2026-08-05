@@ -8,12 +8,10 @@ set -e
 cd "$(dirname "$0")/.."
 
 LOG="examples/log_qwen36_27b_responses.txt"
-MODEL='C:\\Users\\kodep\\models\\unsloth\\Qwen3.6-27B-MTP-GGUF\\Qwen3.6-27B-UD-Q4_K_XL.gguf'
 BASE_URL="http://192.168.1.157:8080/v1"
 PROMPT="List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
 
-echo "Running: Qwen3.6-27B (Q4) + Responses API on $BASE_URL"
-echo "Model: $MODEL"
+echo "Running: Qwen3.6-27B + Responses API on $BASE_URL"
 echo "Prompt: $PROMPT"
 echo "Log: $LOG"
 echo "========================================"
@@ -29,7 +27,7 @@ from four.parse import toolcall_response_parse
 from four.env import local_env
 from four.core import save_trajectory
 
-MODEL_ID = '$MODEL'
+MODEL_ID = 'C:\\\\Users\\\\kodep\\\\models\\\\unsloth\\\\Qwen3.6-27B-MTP-GGUF\\\\Qwen3.6-27B-UD-Q4_K_XL.gguf'
 BASE_URL = '$BASE_URL'
 PROMPT = '''$PROMPT'''
 

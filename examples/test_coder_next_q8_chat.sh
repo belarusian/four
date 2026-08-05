@@ -8,12 +8,10 @@ set -e
 cd "$(dirname "$0")/.."
 
 LOG="examples/log_coder_next_q8_chat.txt"
-MODEL='/Users/kodep/models/bartowski/qwen3-coder-next-q4/Qwen_Qwen3-Coder-Next-Q4_K_M/Qwen_Qwen3-Coder-Next-Q4_K_M.gguf'
 BASE_URL="http://192.168.1.161:8082/v1"
 PROMPT="List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
 
-echo "Running: Coder-Next Q8 (80B) + Chat Completions on $BASE_URL"
-echo "Model: $MODEL"
+echo "Running: Coder-Next Q8 + Chat Completions on $BASE_URL"
 echo "Prompt: $PROMPT"
 echo "Log: $LOG"
 echo "========================================"
@@ -29,7 +27,7 @@ from four.parse import regex_parse
 from four.env import local_env
 from four.core import save_trajectory
 
-MODEL_ID = '$MODEL'
+MODEL_ID = '/Users/kodep/models/bartowski/qwen3-coder-next-q4/Qwen_Qwen3-Coder-Next-Q4_K_M/Qwen_Qwen3-Coder-Next-Q4_K_M.gguf'
 BASE_URL = '$BASE_URL'
 PROMPT = '''$PROMPT'''
 
