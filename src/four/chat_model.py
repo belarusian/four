@@ -1,10 +1,16 @@
-"""Chat Completions API G functions — litellm.completion()."""
+"""Chat Completions API G — inherits from LitellmModel.
+
+Two variants:
+1. Text-based (regex parsing) — like mini-swe-agent's LitellmTextbasedModel
+2. Tool calls — like mini-swe-agent's LitellmModel
+"""
 
 from __future__ import annotations
 
 import json
 
-from .core import Err, Invoke, Ok
+from .core import Err, Ok
+from .model import LitellmModel
 
 # ── Chat Completions tool definition (nested "function" key) ───────────────
 
@@ -27,83 +33,66 @@ BASH_TOOL = {
 }
 
 
-def litellm_invoke(
-    model: str = "anthropic/claude-sonnet-4-5-20250929",
-    tools: list[dict] | None = None,
-    **model_kwargs,
-) -> Invoke:
-    """G via litellm.completion() — plain text response."""
+class _ChatCompletionsBase(LitellmModel):
+    """Base for Chat Completions API implementations."""
 
-    def _invoke(messages: list[dict]) -> Ok[str] | Err[str]:
+    def _query(self, messages: list[dict]) -> object:
         import litellm
+        kwargs = {"model": self.model, "messages": messages, **self.model_kwargs}
+        return litellm.completion(**kwargs)
 
-        clean = [
-            {k: v for k, v in m.items()
-             if k in ("role", "content", "tool_calls", "tool_call_id", "name")}
-            for m in messages
-        ]
 
-        try:
-            kwargs = {"model": model, "messages": clean, **model_kwargs}
-            if tools:
-                kwargs["tools"] = tools
+class _ChatCompletionsText(_ChatCompletionsBase):
+    """Chat Completions + text-based parsing (regex)."""
 
-            response = litellm.completion(**kwargs)
+    def _parse_response(self, response) -> Ok[str] | Err[str]:
+        msg = response.choices[0].message
+        content = msg.content or getattr(msg, "reasoning_content", "") or ""
+        return Ok(content)
+
+
+class _ChatCompletionsToolcall(_ChatCompletionsBase):
+    """Chat Completions + tool calls."""
+
+    def _parse_response(self, response) -> Ok[str] | Err[str]:
+        tool_calls = response.choices[0].message.tool_calls or []
+        if not tool_calls:
             msg = response.choices[0].message
             content = msg.content or getattr(msg, "reasoning_content", "") or ""
             return Ok(content)
 
-        except Exception as e:
-            return Err(f"{type(e).__name__}: {e}")
+        actions = []
+        for tc in tool_calls:
+            func = tc.function
+            actions.append({
+                "tool_call_id": tc.id,
+                "name": func.name,
+                "arguments": func.arguments,
+            })
 
-    return _invoke
+        return Ok(json.dumps(actions))
+
+
+# ── Public factory functions ───────────────────────────────────────────────
+
+
+def litellm_invoke(
+    model: str = "anthropic/claude-sonnet-4-5-20250929",
+    **model_kwargs,
+):
+    """G via litellm.completion() — plain text response."""
+    impl = _ChatCompletionsText(model, **model_kwargs)
+    return impl._invoke
 
 
 def litellm_toolcall_invoke(
     model: str = "anthropic/claude-sonnet-4-5-20250929",
     **model_kwargs,
-) -> Invoke:
+):
     """G via litellm.completion() with tool calls.
 
     Returns JSON array of {tool_call_id, name, arguments}.
     V1 should use toolcall_parse().
     """
-
-    def _invoke(messages: list[dict]) -> Ok[str] | Err[str]:
-        import litellm
-
-        clean = [
-            {k: v for k, v in m.items()
-             if k in ("role", "content", "tool_calls", "tool_call_id", "name")}
-            for m in messages
-        ]
-
-        try:
-            response = litellm.completion(
-                model=model,
-                messages=clean,
-                tools=[BASH_TOOL],
-                **model_kwargs,
-            )
-
-            tool_calls = response.choices[0].message.tool_calls or []
-            if not tool_calls:
-                msg = response.choices[0].message
-                content = msg.content or getattr(msg, "reasoning_content", "") or ""
-                return Ok(content)
-
-            actions = []
-            for tc in tool_calls:
-                func = tc.function
-                actions.append({
-                    "tool_call_id": tc.id,
-                    "name": func.name,
-                    "arguments": func.arguments,
-                })
-
-            return Ok(json.dumps(actions))
-
-        except Exception as e:
-            return Err(f"{type(e).__name__}: {e}")
-
-    return _invoke
+    impl = _ChatCompletionsToolcall(model, **model_kwargs)
+    return impl._invoke
