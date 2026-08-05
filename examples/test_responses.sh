@@ -1,17 +1,18 @@
 #!/bin/bash
-# Test Qwen3-Coder-Next Q4 (80B) on :8080 using Responses API
-# Run: ./examples/test_coder_next_q4_responses.sh
-# Output: examples/log_coder_next_q4_responses.txt
+# Test Qwen3.6-27B (Q4) using Responses API
+# Run: ./examples/test_responses.sh
+# Run with custom endpoint: FIVE_BASE_URL=http://192.168.1.XXX:808X/v1 ./examples/test_responses.sh
+# Output: examples/log_responses.txt
 
 set -e
 
 cd "$(dirname "$0")/.."
 
-LOG="examples/log_coder_next_q4_responses.txt"
-BASE_URL="http://192.168.1.161:8080/v1"
+LOG="examples/log_responses.txt"
+BASE_URL="${FIVE_BASE_URL:-http://192.168.1.157:8080/v1}"
 PROMPT="List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
 
-echo "Running: Coder-Next Q4 + Responses API on $BASE_URL"
+echo "Running: Qwen3.6-27B + Responses API on $BASE_URL"
 echo "Prompt: $PROMPT"
 echo "Log: $LOG"
 echo "========================================"
@@ -27,7 +28,7 @@ from four.parse import toolcall_response_parse
 from four.env import local_env
 from four.core import save_trajectory
 
-MODEL_ID = '/Users/kodep/models/bartowski/qwen3-coder-next-q4/Qwen_Qwen3-Coder-Next-Q4_K_M/Qwen_Qwen3-Coder-Next-Q4_K_M.gguf'
+MODEL_ID = 'qwen'
 BASE_URL = '$BASE_URL'
 PROMPT = '''$PROMPT'''
 
