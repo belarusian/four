@@ -1,17 +1,17 @@
 #!/bin/bash
-# Test Qwen3-Coder-Next Q4 (80B) on :8080 using Responses API
-# Run: ./examples/test_coder_next_q4_responses.sh
-# Output: examples/log_coder_next_q4_responses.txt
+# Test Qwen3.6-27B on any endpoint using Chat Completions API
+# Run: FIVE_BASE_URL=http://192.168.1.XXX:808X/v1 ./examples/test_chat.sh
+# Output: examples/log_chat.txt
 
 set -e
 
 cd "$(dirname "$0")/.."
 
-LOG="examples/log_coder_next_q4_responses.txt"
-BASE_URL="http://192.168.1.161:8080/v1"
+LOG="examples/log_chat.txt"
+BASE_URL="${FIVE_BASE_URL:-http://192.168.1.157:8080/v1}"
 PROMPT="List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
 
-echo "Running: Coder-Next Q4 + Responses API on $BASE_URL"
+echo "Running: Chat Completions on $BASE_URL"
 echo "Prompt: $PROMPT"
 echo "Log: $LOG"
 echo "========================================"
@@ -22,13 +22,12 @@ import os, sys, time
 sys.path.insert(0, 'src')
 
 from four.core import run, Ok, Err
-from four.response_model import http_response_invoke
-from four.parse import toolcall_response_parse
+from four.chat_model import litellm_invoke
+from four.parse import regex_parse
 from four.env import local_env
-from four.core import save_trajectory
 
-MODEL_ID = '/Users/kodep/models/bartowski/qwen3-coder-next-q4/Qwen_Qwen3-Coder-Next-Q4_K_M/Qwen_Qwen3-Coder-Next-Q4_K_M.gguf'
-BASE_URL = '$BASE_URL'
+MODEL_ID = 'C:\\\\Users\\\\kodep\\\\models\\\\unsloth\\\\Qwen3.6-27B-MTP-GGUF\\\\Qwen3.6-27B-UD-Q4_K_XL.gguf'
+BASE_URL = '${BASE_URL}'
 PROMPT = '''$PROMPT'''
 
 step_num = [0]
@@ -36,11 +35,12 @@ step_num = [0]
 def debug_g(messages):
     step_num[0] += 1
     t0 = time.time()
-    result = http_response_invoke(
+    result = litellm_invoke(
+        model=f'openai/{MODEL_ID}',
         base_url=BASE_URL,
-        model=MODEL_ID,
+        temperature=0.3,
+        max_tokens=1024,
         api_key='dummy',
-        max_output_tokens=1024,
     )(messages)
     elapsed = time.time() - t0
     if isinstance(result, Ok):
@@ -51,9 +51,8 @@ def debug_g(messages):
     return result
 
 g = debug_g
-v1 = toolcall_response_parse()
+v1 = regex_parse()
 v2 = local_env()
-emit = save_trajectory('.')
 
 system = (
     'You are a bash agent. You solve tasks by executing bash commands. '
@@ -61,7 +60,7 @@ system = (
     'When the task is fully done, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT'
 )
 
-path = run(G=g, V1=v1, V2=v2, emit=emit, system=system, prompt=PROMPT, max_steps=10)
+path = run(G=g, V1=v1, V2=v2, emit=lambda m, o: open('/dev/null', 'w'), system=system, prompt=PROMPT, max_steps=10)
 
 import json
 data = json.loads(path.read_text())
