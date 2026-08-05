@@ -2,72 +2,33 @@
 
 Tested Four against multiple local models via llama.cpp (OpenAI-compatible endpoint).
 
-## Test Script
+## Usage
 
-```python
-import os, sys, time
+Run live tests with `examples/run_live.py`:
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+```bash
+# Chat Completions API (regex parsing)
+FIVE_BASE_URL=http://192.168.1.161:8082/v1 python examples/run_live.py --variant chat
 
-from four.core import run, Ok, Err
-from four.model import retry_invoke, litellm_invoke
-from four.parse import regex_parse
-from four.env import local_env
-from four.core import save_trajectory
+# Tool calls API
+FIVE_BASE_URL=http://192.168.1.157:8080/v1 python examples/run_live.py --variant toolcall
 
-MODEL_ID = '/path/to/model.gguf'
-BASE_URL = "http://192.168.1.XXX:8080/v1"
-LITELLM_MODEL = f"openai/{MODEL_ID}"
-
-step_num = [0]
-
-def debug_g(messages):
-    step_num[0] += 1
-    t0 = time.time()
-    result = litellm_invoke(
-        model=LITELLM_MODEL,
-        base_url=BASE_URL,
-        temperature=0.3,
-        max_tokens=1024,
-        api_key="dummy",
-    )(messages)
-    elapsed = time.time() - t0
-    if isinstance(result, Ok):
-        preview = result.value[:120].replace("\n", " ")
-        print(f"  [G step {step_num[0]}] ({elapsed:.1f}s) -> {preview}...")
-    else:
-        print(f"  [G step {step_num[0]}] ({elapsed:.1f}s) ERR: {result.error[:100]}")
-    return result
-
-g = retry_invoke(debug_g, max_attempts=3)
-v1 = regex_parse()
-v2 = local_env()
-emit = save_trajectory(".")
-
-system = (
-    "You are a bash agent. You solve tasks by executing bash commands. "
-    "Wrap each command in a ```bash ... ``` block. "
-    "When the task is fully done, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
-)
-
-prompt = sys.argv[1] if len(sys.argv) > 1 else (
-    "List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
-)
-
-print(f"Model: {MODEL_ID.split('/')[-1]}")
-print(f"Endpoint: {BASE_URL}")
-print(f"Prompt: {prompt[:120]}")
-print("-" * 60)
-
-path = run(G=g, V1=v1, V2=v2, emit=emit, system=system, prompt=prompt, max_steps=10)
-print(f"\nTrajectory saved to: {path}")
-print(f"Total G calls: {step_num[0]}")
+# Responses API (direct HTTP /v1/responses)
+FIVE_BASE_URL=http://192.168.1.161:8082/v1 python examples/run_live.py --variant responses
 ```
+
+Environment variables:
+- `FIVE_MODEL` — Model ID (default: `fast-qwen`)
+- `FIVE_BASE_URL` — llama.cpp endpoint (e.g., `http://192.168.1.157:8080/v1`)
+- `FIVE_MAX_TOKENS` — Max tokens per response (default: 1024)
+- `FIVE_MAX_STEPS` — Max loop steps (default: 10)
+
+Each run saves a trajectory to `examples/log_<endpoint>_<variant>.json`.
 
 ## Results
 
 ### Qwen3-Coder-Next (80B, Q4, 17GB) — ✅ Excellent
-- **Endpoint:** `http://192.168.1.161:8080/v1`
+- **Endpoint:** `http://192.168.1.161:8082/v1`
 - **4 steps** to solve "list .py files, count lines in largest"
 - Correct answer: 655 lines in `generate_projections.py`
 - Clean termination on `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`
