@@ -138,6 +138,9 @@ def run(
         if isinstance(raw, Err):
             return emit(messages, f"model_error: {raw.error}")
 
+        # Append assistant message (for chat variant to see its own output)
+        messages.append({"role": "assistant", "content": raw.value})
+
         # V1: parse
         actions = V1(raw.value)
         if isinstance(actions, Err):
