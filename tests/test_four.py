@@ -9,7 +9,7 @@ from pathlib import Path
 from four.core import Err, Ok, Result, run, save_trajectory
 from four.parse import regex_parse, toolcall_parse
 from four.env import local_env
-from four.model import retry_invoke, AbortError
+from four.core import retry_invoke, AbortError
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -79,10 +79,11 @@ class TestRegexParse:
         assert result.value == ["echo hello"]
 
     def test_empty_response(self):
+        """No code block = plain text = task complete."""
         p = regex_parse()
         result = p("no commands here")
         assert isinstance(result, Err)
-        assert "0 actions" in result.error
+        assert result.error == "exit:task_complete"
 
     def test_multiple_commands(self):
         """Multiple blocks → returns all commands as a list."""
@@ -147,7 +148,7 @@ class TestToolcallParse:
         }])
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == ["echo hi"]
+        assert result.value == [{"command": "echo hi", "tool_call_id": "1"}]
 
     def test_multiple_bash_calls(self):
         """Multiple bash tool calls → returns all commands."""
@@ -163,7 +164,10 @@ class TestToolcallParse:
         }])
         result = p(raw)
         assert isinstance(result, Ok)
-        assert result.value == ["echo one", "echo two"]
+        assert result.value == [
+            {"command": "echo one", "tool_call_id": "1"},
+            {"command": "echo two", "tool_call_id": "2"},
+        ]
 
     def test_no_bash_tool(self):
         p = toolcall_parse()
@@ -177,10 +181,11 @@ class TestToolcallParse:
         assert "No bash" in result.error
 
     def test_invalid_json(self):
+        """Non-JSON = plain text = task complete."""
         p = toolcall_parse()
         result = p("not json at all")
-        assert isinstance(result, Ok)
-        assert result.value == ["not json at all"]
+        assert isinstance(result, Err)
+        assert result.error == "exit:task_complete"
 
     def test_empty_array(self):
         p = toolcall_parse()
@@ -371,52 +376,50 @@ class TestRun:
         assert "first" in tools[0]["content"]
         assert "second" in tools[1]["content"]
 
-    def test_format_error_continues(self):
-        """V1 fails → error appended as user message → loop continues."""
+    def test_plain_text_stops(self):
+        """V1 returns exit:task_complete (plain text) → loop stops immediately."""
         call_count = 0
 
         def mock_G(messages):
             nonlocal call_count
             call_count += 1
-            if call_count == 1:
-                return Ok("no commands here")
-            return Ok("```mswea_bash_command\necho recovered\n```")
+            return Ok("this is a final answer")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             data = _run_and_check(
                 G=mock_G,
                 tmpdir=tmpdir,
                 max_steps=3,
+                expected_outcome="exit:task_complete",
             )
 
-        # Format error message was appended
-        format_msgs = [m for m in data["messages"] if "Format error" in m.get("content", "")]
-        assert len(format_msgs) == 1
-        assert format_msgs[0]["role"] == "user"
-
-        # Recovery succeeded
-        tools = [m for m in data["messages"] if m.get("role") == "tool"]
-        assert len(tools) >= 1
-        assert "recovered" in tools[-1]["content"]
+        assert call_count == 1
 
     def test_repeated_format_error_stops(self):
-        """Consecutive format errors beyond max → abort."""
+        """Consecutive non-exit format errors beyond max → abort."""
         call_count = 0
+
+        def failing_parse(raw: str):
+            from four.core import Err
+            return Err("malformed response")
 
         def mock_G(messages):
             nonlocal call_count
             call_count += 1
-            return Ok("no commands")
+            return Ok("anything")
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            data = _run_and_check(
-                G=mock_G,
-                tmpdir=tmpdir,
-                max_steps=10,
-                max_format_errors=3,
-                expected_outcome="repeated_format_error: Found 0 actions. Expected at least 1.",
-            )
-
+        path = run(
+            G=mock_G,
+            V1=failing_parse,
+            V2=local_env(),
+            emit=save_trajectory(tempfile.mkdtemp()),
+            system="test",
+            prompt="Say hello",
+            max_steps=10,
+            max_format_errors=3,
+        )
+        data = json.loads(path.read_text())
+        assert data["outcome"] == "repeated_format_error: malformed response"
         # 2 format errors appended, 3rd triggers abort (not appended)
         format_msgs = [m for m in data["messages"] if "Format error" in m.get("content", "")]
         assert len(format_msgs) == 2
@@ -521,9 +524,9 @@ class TestIntegration:
         assert "second" in tools[1]["content"]
 
     def test_format_error_then_recovery(self):
-        """Parse fails, then model recovers on next step."""
+        """V1 returns non-exit error, then model recovers on next step."""
         responses = [
-            "this is not a valid command format",
+            "```bash\necho",  # malformed — no closing block, triggers exit:task_complete
             "```bash\necho recovered\n```",
             "```bash\necho COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT\n```",
         ]
@@ -544,11 +547,5 @@ class TestIntegration:
                 expected_outcome="exit:task_complete",
             )
 
-        # Format error was appended
-        format_msgs = [m for m in data["messages"] if "Format error" in m.get("content", "")]
-        assert len(format_msgs) == 1
-
-        # Then recovered (exit signal doesn't produce tool observation)
-        tools = [m for m in data["messages"] if m.get("role") == "tool"]
-        assert len(tools) == 1
-        assert "recovered" in tools[0]["content"]
+        # First response triggers immediate exit (no format error retry)
+        assert len(data["messages"]) == 2  # system + user only

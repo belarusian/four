@@ -1,5 +1,9 @@
+# generated files
 __pycache__/
 *.pyc
 .venv/
-trajectories/
+
+# trajectories (generated at runtime, use test scripts for logs)
+trajectory_*.json
+
 src/five.egg-info/

@@ -37,7 +37,8 @@ def regex_parse(
             matches = re.findall(p, raw, re.DOTALL)
             if matches:
                 return Ok([m.strip() for m in matches])
-        return Err(error_template.format(count=0))
+        # No code block found — model returned plain text = final answer
+        return Err("exit:task_complete")
 
     return _parse
 
@@ -47,15 +48,15 @@ def toolcall_parse() -> Parse:
 
     Expects JSON array of {tool_call_id, name, arguments} where
     arguments is a JSON string with a 'command' field.
-    Returns all bash commands as a list.
+    Returns list of {command, tool_call_id} dicts.
     """
 
-    def _parse(raw: str) -> Ok[list[str]] | Err[str]:
+    def _parse(raw: str) -> Ok[list[dict]] | Err[str]:
         try:
             actions = json.loads(raw)
         except json.JSONDecodeError:
-            # Not tool-call JSON — treat as plain text
-            return Ok([raw])
+            # Not tool-call JSON — model returned plain text = final answer
+            return Err("exit:task_complete")
 
         if not isinstance(actions, list) or not actions:
             return Err("No tool calls found")
@@ -65,7 +66,10 @@ def toolcall_parse() -> Parse:
             if action.get("name") == "bash":
                 try:
                     args = json.loads(action["arguments"])
-                    commands.append(args["command"])
+                    commands.append({
+                        "command": args["command"],
+                        "tool_call_id": action.get("tool_call_id") or action.get("call_id") or action.get("id"),
+                    })
                 except (json.JSONDecodeError, KeyError) as e:
                     return Err(f"Invalid bash tool call: {e}")
 
@@ -75,3 +79,11 @@ def toolcall_parse() -> Parse:
         return Ok(commands)
 
     return _parse
+
+
+def toolcall_response_parse() -> Parse:
+    """Parse JSON from Responses API function_call items.
+
+    Same shape as toolcall_parse — the difference is in G, not V1.
+    """
+    return toolcall_parse()

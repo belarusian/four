@@ -5,9 +5,13 @@ Usage:
 
 Environment variables:
     FIVE_MODEL       Model ID (full path to .gguf)
-    FIVE_BASE_URL    llama.cpp endpoint (default: http://192.168.1.161:8080/v1)
+    FIVE_BASE_URL    llama.cpp endpoint (e.g., http://192.168.1.157:8080/v1)
     FIVE_MAX_TOKENS  Max tokens per response (default: 1024)
     FIVE_MAX_STEPS   Max loop steps (default: 10)
+
+For Responses API test, use examples/test_*_responses.sh scripts.
+
+Trajectory files (trajectory_*.json) are committed to the repo for review.
 """
 
 import os, sys, time
@@ -15,7 +19,7 @@ import os, sys, time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from four.core import run, Ok, Err
-from four.model import retry_invoke, litellm_invoke
+from four.chat_model import litellm_invoke
 from four.parse import regex_parse
 from four.env import local_env
 from four.core import save_trajectory
@@ -46,7 +50,7 @@ def debug_g(messages):
         print(f"  [G step {step_num[0]}] ({elapsed:.1f}s) ERR: {result.error[:100]}")
     return result
 
-g = retry_invoke(debug_g, max_attempts=3)
+g = debug_g
 v1 = regex_parse()
 v2 = local_env()
 emit = save_trajectory(".")
@@ -61,7 +65,6 @@ prompt = sys.argv[1] if len(sys.argv) > 1 else (
     "List all .py files in the current directory, then count how many lines are in the largest one. Show the final count."
 )
 
-print(f"Model: {MODEL_ID.split('/')[-1]}")
 print(f"Endpoint: {BASE_URL}")
 print(f"Prompt: {prompt[:120]}")
 print("-" * 60)

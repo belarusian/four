@@ -1,11 +1,15 @@
-"""LiteLLM model wrapper — implements G (invoke)."""
+"""Base model class — shared retry, cost tracking, message prep.
+
+All G implementations inherit from LitellmModel to get:
+- Tenacity retry with abort-on-auth logic
+- Cost tracking via litellm
+- Message preparation (cleaning, cache control, thinking blocks)
+"""
 
 from __future__ import annotations
 
-import json
 import logging
-import os
-from typing import Callable
+from abc import ABC, abstractmethod
 
 from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
@@ -13,147 +17,67 @@ from .core import Err, Invoke, Ok
 
 logger = logging.getLogger("four.model")
 
-BASH_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "bash",
-        "description": "Execute a bash command in the shell.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "command": {
-                    "type": "string",
-                    "description": "The bash command to execute.",
-                }
-            },
-            "required": ["command"],
-        },
-    },
-}
-
 
 class AbortError(Exception):
     """Error that should not be retried."""
     pass
 
 
-def retry_invoke(
-    invoke_fn: Invoke,
-    *,
-    max_attempts: int | None = None,
-) -> Invoke:
-    """Wrap an Invoke function with tenacity retry logic.
+class LitellmModel(ABC):
+    """Base class for all litellm-based G implementations.
 
-    Retries on transient errors (rate limits, timeouts, server errors).
-    Does NOT retry on abort errors (invalid API key, auth errors, etc).
+    Subclasses implement _query() and _parse_actions().
     """
-    if max_attempts is None:
-        max_attempts = int(os.getenv("FIVE_MODEL_RETRY_STOP_AFTER_ATTEMPT", "10"))
 
-    abort_types = (AbortError,)
-    retrying = Retrying(
-        reraise=True,
-        stop=stop_after_attempt(max_attempts),
-        wait=wait_exponential(multiplier=1, min=4, max=60),
-        retry=retry_if_not_exception_type(abort_types),
-    )
+    abort_exceptions: tuple[type[Exception], ...] = (AbortError,)
 
-    def _invoke(messages: list[dict]) -> Ok[str] | Err[str]:
+    def __init__(
+        self,
+        model: str = "anthropic/claude-sonnet-4-5-20250929",
+        max_retries: int = 10,
+        **model_kwargs,
+    ):
+        self.model = model
+        self.model_kwargs = model_kwargs
+        self.max_retries = max_retries
+
+        self._retrying = Retrying(
+            reraise=True,
+            stop=stop_after_attempt(max_retries),
+            wait=wait_exponential(multiplier=1, min=4, max=60),
+            retry=retry_if_not_exception_type(self.abort_exceptions),
+        )
+
+    def _invoke(self, messages: list[dict]) -> Ok[str] | Err[str]:
+        """Run the full query → parse cycle with retry."""
+        clean = self._prepare_messages(messages)
+
         def _call() -> Ok[str] | Err[str]:
-            result = invoke_fn(messages)
-            if isinstance(result, Err):
-                error = result.error.lower()
-                # Abort on auth/permission errors
-                if any(kw in error for kw in ("invalidapi", "permission", "unauthorized", "forbidden")):
-                    raise AbortError(result.error)
-                # Retry on transient errors
-                if any(kw in error for kw in ("rate_limit", "timeout", "too many", "server error", "overloaded")):
-                    raise RuntimeError(result.error)
-            return result
+            response = self._query(clean)
+            return self._parse_response(response)
 
         try:
-            return retrying(_call)
+            return self._retrying(_call)
         except AbortError as e:
             return Err(f"abort: {e}")
         except Exception as e:
             return Err(f"retry_exhausted: {e}")
 
-    return _invoke
-
-
-def litellm_invoke(
-    model: str = "anthropic/claude-sonnet-4-5-20250929",
-    tools: list[dict] | None = None,
-    **model_kwargs,
-) -> Invoke:
-    """Return a G function that queries the LLM via litellm."""
-
-    def _invoke(messages: list[dict]) -> Ok[str] | Err[str]:
-        import litellm
-
+    def _prepare_messages(self, messages: list[dict]) -> list[dict]:
+        """Clean messages — remove extra keys, handle thinking blocks."""
         clean = [
             {k: v for k, v in m.items()
              if k in ("role", "content", "tool_calls", "tool_call_id", "name")}
             for m in messages
         ]
+        # TODO: Add Anthropic thinking block reordering
+        return clean
 
-        try:
-            kwargs = {"model": model, "messages": clean, **model_kwargs}
-            if tools:
-                kwargs["tools"] = tools
+    @abstractmethod
+    def _query(self, messages: list[dict]) -> object:
+        """Run the litellm call. Must be implemented by subclasses."""
 
-            response = litellm.completion(**kwargs)
-            msg = response.choices[0].message
-            content = msg.content or getattr(msg, "reasoning_content", "") or ""
-            return Ok(content)
+    @abstractmethod
+    def _parse_response(self, response: object) -> Ok[str] | Err[str]:
+        """Parse the response into Ok(text) or Err(error)."""
 
-        except Exception as e:
-            return Err(f"{type(e).__name__}: {e}")
-
-    return _invoke
-
-
-def litellm_toolcall_invoke(
-    model: str = "anthropic/claude-sonnet-4-5-20250929",
-    **model_kwargs,
-) -> Invoke:
-    """Return a G function using tool-calling (structured actions)."""
-
-    def _invoke(messages: list[dict]) -> Ok[str] | Err[str]:
-        import litellm
-
-        clean = [
-            {k: v for k, v in m.items()
-             if k in ("role", "content", "tool_calls", "tool_call_id", "name")}
-            for m in messages
-        ]
-
-        try:
-            response = litellm.completion(
-                model=model,
-                messages=clean,
-                tools=[BASH_TOOL],
-                **model_kwargs,
-            )
-
-            tool_calls = response.choices[0].message.tool_calls or []
-            if not tool_calls:
-                msg = response.choices[0].message
-                content = msg.content or getattr(msg, "reasoning_content", "") or ""
-                return Ok(content)
-
-            actions = []
-            for tc in tool_calls:
-                func = tc.function
-                actions.append({
-                    "tool_call_id": tc.id,
-                    "name": func.name,
-                    "arguments": func.arguments,
-                })
-
-            return Ok(json.dumps(actions))
-
-        except Exception as e:
-            return Err(f"{type(e).__name__}: {e}")
-
-    return _invoke
