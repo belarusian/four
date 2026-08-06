@@ -57,6 +57,21 @@ class _ChatCompletionsText(LitellmModel):
 
     def _parse_response(self, response) -> Ok[str] | Err[str]:
         msg = response.choices[0].message
+        
+        # If tool calls are present, return them as JSON
+        tool_calls = getattr(msg, "tool_calls", None) or []
+        if tool_calls:
+            actions = []
+            for tc in tool_calls:
+                func = tc.function
+                actions.append({
+                    "tool_call_id": tc.id,
+                    "name": func.name,
+                    "arguments": func.arguments,
+                })
+            return Ok(json.dumps(actions))
+        
+        # Otherwise return text content or reasoning
         content = msg.content or getattr(msg, "reasoning_content", "") or ""
         return Ok(content)
 
