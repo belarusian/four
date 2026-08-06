@@ -8,11 +8,18 @@ validate : V2  -- action → Result[observation | Exit]
 emit     : IO  -- (messages, outcome) → Path
 """
 
-from .core import Err, Ok, Result, run, save_trajectory, AbortError, retry_invoke
+from .core import Err, Ok, Result, run, save_trajectory, AbortError, retry_invoke, Invoke, Validate
 from .chat_model import BASH_TOOL, litellm_invoke, litellm_toolcall_invoke
 from .response_model import BASH_TOOL_RESPONSE_API, http_response_invoke
 from .parse import regex_parse, toolcall_parse, toolcall_response_parse
 from .env import local_env, local_env_response
+from .super_spoke import (
+    super_env,
+    super_invoke,
+    super_response_invoke,
+    super_spoke_chat,
+    super_spoke_responses,
+)
 
 __all__ = [
     "Err",
@@ -22,6 +29,8 @@ __all__ = [
     "save_trajectory",
     "AbortError",
     "retry_invoke",
+    "Invoke",
+    "Validate",
     "BASH_TOOL",
     "BASH_TOOL_RESPONSE_API",
     "litellm_invoke",
@@ -32,4 +41,9 @@ __all__ = [
     "toolcall_response_parse",
     "local_env",
     "local_env_response",
+    "super_env",
+    "super_invoke",
+    "super_response_invoke",
+    "super_spoke_chat",
+    "super_spoke_responses",
 ]
