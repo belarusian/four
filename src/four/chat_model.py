@@ -46,8 +46,14 @@ class _ChatCompletionsBase(LitellmModel):
         return litellm.completion(**kwargs)
 
 
-class _ChatCompletionsText(_ChatCompletionsBase):
-    """Chat Completions + text-based parsing (regex)."""
+class _ChatCompletionsText(LitellmModel):
+    """Chat Completions + text-based parsing (regex) — NO tools."""
+
+    def _query(self, messages: list[dict]) -> object:
+        import litellm
+        kwargs = {"model": self.model, "messages": messages, **self.model_kwargs}
+        # Explicitly do NOT pass tools - we want plain text output with markdown code blocks
+        return litellm.completion(**kwargs)
 
     def _parse_response(self, response) -> Ok[str] | Err[str]:
         msg = response.choices[0].message

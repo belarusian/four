@@ -77,7 +77,7 @@ def main():
         system = (
             "You are a bash agent. You solve tasks by executing bash commands. "
             "Wrap each command in a ```bash ... ``` block. "
-            "When the task is fully done, respond with plain text instead of a code block."
+            "When the task is fully done, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
         )
 
     elif args.variant == "toolcall":
@@ -105,7 +105,9 @@ def main():
             return result
 
         v1 = toolcall_parse()
-        system = ""  # Tool definition implies action; model terminates naturally with plain text
+        system = (
+            "You are a helpful assistant that can interact with a computer."
+        )
 
     elif args.variant == "responses":
         from four.response_model import http_response_invoke
@@ -129,7 +131,11 @@ def main():
             return result
 
         v1 = toolcall_parse()
-        system = ""  # Tool definition implies action; model terminates naturally with plain text
+        system = (
+            "You are a bash agent. You solve tasks by executing bash commands. "
+            "Wrap each command in a ```bash ... ``` block. "
+            "When the task is fully done, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
+        )
 
     # All branches above define debug_g, v1, system — this else is unreachable
     assert debug_g is not None and v1 is not None and system is not None
