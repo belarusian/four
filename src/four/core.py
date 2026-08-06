@@ -141,6 +141,9 @@ def run(
         # V1: parse
         actions = V1(raw.value)
         if isinstance(actions, Err):
+            # exit:* signals are terminal, not format errors
+            if actions.error.startswith("exit:"):
+                return emit(messages, actions.error)
             consecutive_format_errors += 1
             if 0 < max_format_errors <= consecutive_format_errors:
                 return emit(messages, f"repeated_format_error: {actions.error}")

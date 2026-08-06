@@ -9,9 +9,7 @@ All G implementations inherit from LitellmModel to get:
 from __future__ import annotations
 
 import logging
-import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 
 from tenacity import Retrying, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
@@ -83,32 +81,3 @@ class LitellmModel(ABC):
     def _parse_response(self, response: object) -> Ok[str] | Err[str]:
         """Parse the response into Ok(text) or Err(error)."""
 
-
-# ── Factory functions (convenience wrappers) ──────────────────────────────
-
-
-def make_litellm_invoke(
-    model: str = "anthropic/claude-sonnet-4-5-20250929",
-    **model_kwargs,
-) -> Callable[[list[dict]], Ok[str] | Err[str]]:
-    """Create a G function for Chat Completions + text-based parsing."""
-    impl = ChatCompletionsModel(model, **model_kwargs)
-    return impl._invoke
-
-
-def make_litellm_toolcall_invoke(
-    model: str = "anthropic/claude-sonnet-4-5-20250929",
-    **model_kwargs,
-) -> Callable[[list[dict]], Ok[str] | Err[str]]:
-    """Create a G function for Chat Completions + tool calls."""
-    impl = ChatCompletionsToolcallModel(model, **model_kwargs)
-    return impl._invoke
-
-
-def make_litellm_response_invoke(
-    model: str = "anthropic/claude-sonnet-4-5-20250929",
-    **model_kwargs,
-) -> Callable[[list[dict]], Ok[str] | Err[str]]:
-    """Create a G function for Responses API + tool calls."""
-    impl = ResponsesModel(model, **model_kwargs)
-    return impl._invoke

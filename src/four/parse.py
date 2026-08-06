@@ -37,7 +37,8 @@ def regex_parse(
             matches = re.findall(p, raw, re.DOTALL)
             if matches:
                 return Ok([m.strip() for m in matches])
-        return Err(error_template.format(count=0))
+        # No code block found — model returned plain text = final answer
+        return Err("exit:task_complete")
 
     return _parse
 
@@ -54,8 +55,8 @@ def toolcall_parse() -> Parse:
         try:
             actions = json.loads(raw)
         except json.JSONDecodeError:
-            # Not tool-call JSON — treat as plain text
-            return Ok([{"command": raw, "tool_call_id": None}])
+            # Not tool-call JSON — model returned plain text = final answer
+            return Err("exit:task_complete")
 
         if not isinstance(actions, list) or not actions:
             return Err("No tool calls found")
