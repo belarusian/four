@@ -489,8 +489,8 @@ class TestRun:
                 max_steps=2,
             )
 
-        # system + user prompt + 2 tool observations
-        assert len(data["messages"]) == 4
+        # system + user prompt + 2 assistant messages + 2 tool observations
+        assert len(data["messages"]) == 6
 
 
 # ── Integration ─────────────────────────────────────────────────────────────
@@ -548,4 +548,5 @@ class TestIntegration:
             )
 
         # First response triggers immediate exit (no format error retry)
-        assert len(data["messages"]) == 2  # system + user only
+        # system + user + assistant message = 3
+        assert len(data["messages"]) == 3
