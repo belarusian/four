@@ -40,14 +40,14 @@ def make_parser():
 
 
 def get_system_prompt(variant):
-    """Return system prompt for variant."""
-    if variant in ("chat", "responses"):
-        return (
-            "You are a bash agent. You solve tasks by executing bash commands. "
-            "Wrap each command in a ```bash ... ``` block. "
-            "When the task is fully done, run: echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
-        )
-    return "You are a helpful assistant that can interact with a computer."
+    """Return system prompt for variant. Exit signal handled by V2, not exposed here."""
+    if variant == "toolcall":
+        return ""  # tool definition is enough; model terminates naturally with plain text
+    return (
+        "You are a bash agent. You solve tasks by executing bash commands. "
+        "Wrap each command in a ```bash ... ``` block. "
+        "When the task is fully done, respond with plain text instead of a code block."
+    )
 
 
 def get_litellm_model():
