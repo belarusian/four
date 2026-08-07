@@ -127,7 +127,7 @@ def _generate_spoke_source(spec: PipelineSpokeSpec) -> str:
     for stage_name, stage_config in spec.stages.items():
         # Escape the prompt for Python string
         prompt_escaped = stage_config.prompt.replace('\\', '\\\\').replace('"', '\\"')
-        stages_code.append(f'        "{stage_name}": StageConfig(model="{stage_config.model}", prompt="""{prompt_escaped}"""),')
+        stages_code.append(f'        "{stage_name}": {{"model": "{stage_config.model}", "prompt": """{prompt_escaped}"""}},')
 
     stages_block = "\n".join(stages_code)
 
@@ -188,7 +188,7 @@ def execute_stage(stage_name: str, stage_config: dict[str, Any], input_text: str
 
     def invoke(messages):
         result = litellm_invoke(
-            model=f"openai/{MODEL_ID}",
+            model=f"openai/{{MODEL_ID}}",
             base_url=BASE_URL,
             temperature=0.3,
             max_tokens=MAX_TOKENS,
@@ -241,9 +241,9 @@ def main():
     slug = slugify(topic)
     output_dir = Path(PIPELINE["output_dir"]) / slug
 
-    print(f"Topic: {topic}")
-    print(f"Slug: {slug}")
-    print(f"Output dir: {output_dir}")
+    print(f"Topic: {{topic}}")
+    print(f"Slug: {{slug}}")
+    print(f"Output dir: {{output_dir}}")
     print()
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -257,9 +257,9 @@ def main():
 
     for i, stage_name in enumerate(stage_names):
         stage_config = PIPELINE["stages"][stage_name]
-        output_file = output_dir / f"{stage_name}.md"
+        output_file = output_dir / f"{{stage_name}}.md"
 
-        print(f"Stage {i+1}/{len(stage_names)}: {stage_name}")
+        print(f"Stage {{i+1}}/{{len(stage_names)}}: {{stage_name}}")
         print("-" * 40)
 
         t0 = time.time()
@@ -267,7 +267,7 @@ def main():
         elapsed = time.time() - t0
 
         output_file.write_text(output)
-        print(f"  Output: {output_file} ({elapsed:.1f}s)")
+        print(f"  Output: {{output_file}} ({{elapsed:.1f}}s)")
         print()
 
         current_input = output
@@ -279,11 +279,11 @@ def main():
     print("=" * 40)
     print("COMPLETE")
     print("=" * 40)
-    print(f"Topic: {topic}")
+    print(f"Topic: {{topic}}")
     print()
     for stage_name in stage_names:
-        file_path = output_dir / f"{stage_name}.md"
-        print(f"{stage_name.capitalize()}: {file_path}")
+        file_path = output_dir / f"{{stage_name}}.md"
+        print(f"{{stage_name.capitalize()}}: {{file_path}}")
     print()
 
 
