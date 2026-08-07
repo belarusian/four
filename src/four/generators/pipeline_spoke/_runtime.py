@@ -134,26 +134,49 @@ def _extract_stages(body: str) -> dict[str, StageConfig]:
     """Extract stages dict from constructor body."""
     import ast
 
-    # Try to find the stages= dict literal
-    m = re.search(r'stages\s*=\s*\{([^}]*)\}', body, re.DOTALL)
+    # Try to find the stages= dict literal - find the opening brace
+    m = re.search(r'stages\s*=\s*\{', body)
     if not m:
         return {}
 
-    stages_content = m.group(1)
+    # Find the matching closing brace by counting braces
+    start = m.end()
+    depth = 1
+    end = start
+    for i in range(start, len(body)):
+        if body[i] == '{':
+            depth += 1
+        elif body[i] == '}':
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
 
-    # Parse stage entries: "stage_name": StageConfig(...)
-    stage_entries = re.findall(
+    stages_content = body[start:end]
+
+    # Try multiple patterns to extract stage entries
+    patterns = [
         r'"(\w+)"\s*:\s*StageConfig\([^)]+\)',
-        stages_content,
-        re.DOTALL,
-    )
+        r"'(\w+)'\\s*:\\s*StageConfig\\([^)]+\\)",
+        r'"(\w+)"\\s*:\\s*StageConfig\\([^)]*\\)',
+    ]
 
     stages: dict[str, StageConfig] = {}
 
+    for pattern in patterns:
+        stage_entries = re.findall(pattern, stages_content, re.DOTALL)
+        if stage_entries:
+            break
+    else:
+        return {}
+
     for stage_name in stage_entries:
+        if isinstance(stage_name, tuple):
+            stage_name = stage_name[0]
+
         # Extract the StageConfig for this stage
-        pattern = rf'"{stage_name}"\s*:\s*StageConfig\(([^)]+)\)'
-        m = re.search(pattern, stages_content)
+        pattern = rf'["\']{stage_name}["\']\s*:\s*StageConfig\(([^)]+)\)'
+        m = re.search(pattern, stages_content, re.DOTALL)
         if not m:
             continue
 
