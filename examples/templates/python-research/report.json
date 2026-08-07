@@ -1,0 +1,9 @@
+{
+  "version": 0,
+  "rounds": 1,
+  "ouroboros_fixes": 0,
+  "outcome": "success",
+  "validators": [],
+  "claim": "Python research project template with testing and documentation",
+  "user_prompt": "Create a Python research template with testing and documentation"
+}
