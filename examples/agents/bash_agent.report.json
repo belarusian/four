@@ -1,0 +1,9 @@
+{
+  "version": 0,
+  "rounds": 1,
+  "ouroboros_fixes": 0,
+  "outcome": "success",
+  "validators": [],
+  "claim": "Bash Agent",
+  "user_prompt": "Create a bash agent with chat variant"
+}
