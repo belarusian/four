@@ -54,7 +54,7 @@ def execute_stage(stage_name: str, stage_config: dict[str, Any], input_text: str
     model_id = model_name.split(":")[0] if ":" in model_name else model_name
     MODEL_ID = os.getenv("FIVE_MODEL", model_id)
     BASE_URL = os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1")
-    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "1024"))
+    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "65536"))
 
     def invoke(messages):
         result = litellm_invoke(
