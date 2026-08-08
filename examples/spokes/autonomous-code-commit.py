@@ -36,7 +36,7 @@ def main():
 
     MODEL_ID = os.getenv("FIVE_MODEL", "granite4.1:8b")
     BASE_URL = os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1")
-    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "1024"))
+    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "65536"))
 
     step_num = [0]
 

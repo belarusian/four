@@ -122,7 +122,7 @@ def emit_spoke(
 def _generate_spoke_source(spec: AutonomousPipelineSpec) -> str:
     """Generate the Python source code for the autonomous pipeline spoke."""
     stages_block = "\n".join(
-        f'    - {name}: {stage.description} (max {stage.max_turns} turns, validate: {stage.validation_command})'
+        f'    - {name}: {stage.description}'
         for name, stage in spec.stages.items()
     )
 
@@ -152,6 +152,19 @@ from four.chat_model import context_aware_invoke
 from four.parse import regex_parse
 from four.env import local_env
 from four.core import save_trajectory
+
+
+def resilient_env():
+    """V2 wrapper: command failures become observations, not loop-terminating errors."""
+    base = local_env()
+
+    def _validate(command: str):
+        result = base(command)
+        if isinstance(result, Err):
+            return Ok({{"role": "tool", "content": f"<error>{{result.error}}</error>"}})
+        return result
+
+    return _validate
 
 
 def main():
@@ -193,7 +206,13 @@ def main():
 
     system = """You are an autonomous development agent.
 
-Goal: Implement the user's request by writing code, committing, and pushing.
+RULES:
+- Output ONE bash command per step in a code block.
+- The system executes it and shows you the result.
+- If the command fails, you will see the error — fix it and try again.
+- Take small incremental steps. Do NOT try to do everything in one command.
+- Use git frequently: git add, git commit after each meaningful change.
+- Continue until the goal is fully achieved.
 
 Stages to follow:
 {stages_block}
@@ -214,7 +233,7 @@ When done, output: DONE
     path = run(
         G=debug_g,
         V1=regex_parse(),
-        V2=local_env(),
+        V2=resilient_env(),
         emit=save_trajectory(),
         system=system,
         prompt=args.goal,

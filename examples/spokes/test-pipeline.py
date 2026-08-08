@@ -59,7 +59,7 @@ def execute_turn(turn_num: int, stage_name: str, stage_config: dict[str, Any], i
     model_id = "granite4.1:8b"
     MODEL_ID = os.getenv("FIVE_MODEL", model_id)
     BASE_URL = os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1")
-    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "1024"))
+    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "65536"))
 
     system_prompt = f"""You are an autonomous development agent.
     
