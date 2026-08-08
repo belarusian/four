@@ -1,19 +1,102 @@
 #!/bin/bash
 set -e
 
-PROJECT_DIR="$HOME/Research/autonomous-project"
+# ── Defaults ────────────────────────────────────────────────────────────────
+VARIANT="${VARIANT:-context-aware}"          # massive | context-aware
+PROJECT_DIR="${PROJECT_DIR:-$HOME/Research/autonomous-project}"
+PROJECT_NAME="${PROJECT_NAME:-autonomous-project}"
+GOAL="${GOAL:-}"
 
+# ── Usage ───────────────────────────────────────────────────────────────────
+usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --goal GOAL          Project description (required, or set GOAL env var)"
+    echo "  --variant VARIANT    'massive' (single model) or 'context-aware' (two-model fallback, default)"
+    echo "  --project-dir DIR    Working directory (default: ~/Research/autonomous-project)"
+    echo "  --project-name NAME  GitHub repo name (default: autonomous-project)"
+    echo "  --help               Show this help"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --goal 'Build a CLI tool called foo with bar and baz features'"
+    echo "  VARIANT=massive $0 --goal 'Quick prototype'"
+    echo "  GOAL='Build a search engine' $0"
+    exit 0
+}
+
+# ── Parse args ──────────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --goal) GOAL="$2"; shift 2 ;;
+        --variant) VARIANT="$2"; shift 2 ;;
+        --project-dir) PROJECT_DIR="$2"; shift 2 ;;
+        --project-name) PROJECT_NAME="$2"; shift 2 ;;
+        --help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+done
+
+if [ -z "$GOAL" ]; then
+    echo "Error: --goal is required (or set GOAL env var)"
+    usage
+fi
+
+# ── Select spoke ────────────────────────────────────────────────────────────
+SPOKE_DIR="$HOME/Research/four/examples/spokes"
+case "$VARIANT" in
+    massive)
+        SPOKE="$SPOKE_DIR/massive-feature-implementation.py"
+        ;;
+    context-aware)
+        SPOKE="$SPOKE_DIR/context-aware-implementation.py"
+        ;;
+    *)
+        echo "Error: unknown variant '$VARIANT' (use 'massive' or 'context-aware')"
+        exit 1
+        ;;
+esac
+
+if [ ! -f "$SPOKE" ]; then
+    echo "Error: spoke not found: $SPOKE"
+    exit 1
+fi
+
+# ── Setup project dir ───────────────────────────────────────────────────────
 echo "Setting up project at $PROJECT_DIR"
 mkdir -p "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 
 if [ ! -d ".git" ]; then
-  git init
-  git commit --allow-empty -m "initial"
+    git init
+    git commit --allow-empty -m "initial"
 fi
 
-echo "Starting autonomous pipeline..."
-FIVE_BASE_URL=http://192.168.1.157:8080/v1 FIVE_MODEL=fast-qwen FIVE_MAX_TOKENS=65536 \
-python "$HOME/Research/four/examples/spokes/massive-feature-implementation.py" \
-  --goal "Build a new Python CLI tool called 'taskflow' — a lightweight project management system with: (1) Ticket/issue tracking with labels, priority, and assignee support. (2) Real-time collaboration features with WebSocket-based live updates and notification engine. Target: 1000 commits across 200 PRs with 100% test coverage. Each PR must be small, focused, and include tests." \
-  --max-steps 2000
+# ── Push to remote on exit ──────────────────────────────────────────────────
+cleanup() {
+    echo "Pushing to remote..."
+    git add -A 2>/dev/null || true
+    git commit -m "autonomous: save progress" 2>/dev/null || true
+    if ! git remote -v | grep -q "origin"; then
+        REMOTE_URL="https://github.com/belarusian/${PROJECT_NAME}.git"
+        echo "Creating GitHub repo: $PROJECT_NAME"
+        gh repo create "belarusian/$PROJECT_NAME" --public --source=. --remote=origin --push 2>/dev/null || \
+        (git remote add origin "$REMOTE_URL" 2>/dev/null; git push -u origin main 2>/dev/null) || true
+    else
+        git push 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+# ── Run ─────────────────────────────────────────────────────────────────────
+echo "Variant: $VARIANT"
+echo "Spoke:   $SPOKE"
+echo "Goal:    $GOAL"
+echo "---"
+
+FIVE_BASE_URL=http://192.168.1.157:8080/v1 \
+FIVE_MODEL=fast-qwen \
+FIVE_LARGE_URL=http://192.168.1.161:8081/v1 \
+FIVE_LARGE_MODEL=qwen \
+FIVE_MAX_TOKENS=65536 \
+python "$SPOKE" --goal "$GOAL"

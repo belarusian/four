@@ -148,7 +148,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "AI" / "four"))
 
 from four.core import run, Ok, Err
-from four.chat_model import litellm_invoke
+from four.chat_model import context_aware_invoke
 from four.parse import regex_parse
 from four.env import local_env
 from four.core import save_trajectory
@@ -173,22 +173,29 @@ def main():
     parser.add_argument("--max-steps", type=int, default=100, help="Max steps")
     args = parser.parse_args()
 
-    MODEL_ID = os.getenv("FIVE_MODEL", "granite4.1:8b")
-    BASE_URL = os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1")
+    MODEL_ID = os.getenv("FIVE_MODEL", "fast-qwen")
+    LARGE_MODEL = os.getenv("FIVE_LARGE_MODEL", "qwen")
+    BASE_URL = os.getenv("FIVE_BASE_URL", "http://192.168.1.157:8080/v1")
+    LARGE_URL = os.getenv("FIVE_LARGE_URL", "http://192.168.1.161:8081/v1")
     MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "65536"))
 
     step_num = [0]
 
+    invoke = context_aware_invoke(
+        fast_model=f"openai/{{MODEL_ID}}",
+        large_model=f"openai/{{LARGE_MODEL}}",
+        fast_base_url=BASE_URL,
+        large_base_url=LARGE_URL,
+        context_limit=50_000,
+        temperature=0.3,
+        max_tokens=MAX_TOKENS,
+        api_key="dummy",
+    )
+
     def debug_g(messages):
         step_num[0] += 1
         t0 = time.time()
-        result = litellm_invoke(
-            model=f"openai/{{MODEL_ID}}",
-            base_url=BASE_URL,
-            temperature=0.3,
-            max_tokens=MAX_TOKENS,
-            api_key="dummy",
-        )(messages)
+        result = invoke(messages)
         elapsed = time.time() - t0
         if isinstance(result, Ok):
             preview = result.value[:120].replace("\\n", " ")
@@ -209,6 +216,18 @@ RULES:
 
 Stages to follow:
 {stages_block}
+
+Use bash commands to:
+- Write/modify files with cat, echo, or python -c
+- Run git add, git commit, git push
+- Execute tests, linters, builds
+- Call other LLMs via curl if needed
+
+IMPORTANT: Work in the current directory only. NEVER use cd to change directories. NEVER create temporary directories. All files should be created in the current working directory.
+
+Each step, output a bash command in a code block. The system will execute it and show you the result. Continue until the goal is achieved.
+
+When done, output: DONE
 """
 
     path = run(
