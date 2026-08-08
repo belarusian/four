@@ -16,6 +16,7 @@ Stages:
 import argparse
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "AI" / "four"))
@@ -35,6 +36,27 @@ def main():
 
     MODEL_ID = os.getenv("FIVE_MODEL", "granite4.1:8b")
     BASE_URL = os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1")
+    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "1024"))
+
+    step_num = [0]
+
+    def debug_g(messages):
+        step_num[0] += 1
+        t0 = time.time()
+        result = litellm_invoke(
+            model=f"openai/{MODEL_ID}",
+            base_url=BASE_URL,
+            temperature=0.3,
+            max_tokens=MAX_TOKENS,
+            api_key="dummy",
+        )(messages)
+        elapsed = time.time() - t0
+        if isinstance(result, Ok):
+            preview = result.value[:120].replace("\\n", " ")
+            print(f"  [G step {step_num[0]}] ({elapsed:.1f}s) -> {preview}...")
+        else:
+            print(f"  [G step {step_num[0]}] ({elapsed:.1f}s) ERR: {result.error[:100]}")
+        return result
 
     system = """You are an autonomous development agent.
 
@@ -56,8 +78,8 @@ Each step, output a bash command in a code block. The system will execute it and
 When done, output: DONE
 """
 
-    run(
-        G=litellm_invoke(f"openai/{MODEL_ID}", base_url=BASE_URL, api_key="dummy"),
+    path = run(
+        G=debug_g,
         V1=regex_parse(),
         V2=local_env(),
         emit=save_trajectory(),
@@ -65,6 +87,8 @@ When done, output: DONE
         prompt=args.goal,
         max_steps=args.max_steps,
     )
+    print(f"Trajectory saved to: {path}")
+    print(f"Total G calls: {step_num[0]}")
 
 
 if __name__ == "__main__":
