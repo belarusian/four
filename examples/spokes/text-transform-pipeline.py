@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-Pipeline spoke: Text Transform Pipeline
+Autonomous pipeline: text-transform-pipeline
 
-A multi-stage pipeline that processes text through multiple stages:
-1. uppercase - Convert text to uppercase
-2. wordcount - Count words in text
-3. reverse - Reverse text character by character
+Pipeline that translates text to uppercase, reverses it, and counts words
 
-This spoke implements a bash-based pipeline using the four framework.
+This spoke implements an autonomous development loop using four.core.run().
+The agent uses bash to write code, run git, execute tests, and iterate.
+
+Stages:
+    - setup: Create input text file and processing script (max 10 turns, validate: test -f input.txt && test -f transform.sh)
+    - transform: Apply uppercase transformation, reverse the text, and count words (max 10 turns, validate: test -f output.txt && test -f word_count.txt)
+    - verify: Verify transformations are correct: check uppercase, reversal, and word count (max 10 turns, validate: bash -c )
 """
 
 import argparse
 import os
 import sys
-import time
 from pathlib import Path
-from typing import Any
 
-# Add four to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "AI" / "four"))
 
 from four.core import run, Ok, Err
@@ -26,145 +26,45 @@ from four.parse import regex_parse
 from four.env import local_env
 from four.core import save_trajectory
 
-# Pipeline configuration
-PIPELINE = {
-    "name": "Text Transform Pipeline",
-    "description": "A multi-stage pipeline that processes text through uppercase, wordcount, and reverse stages",
-    "stages": {
-        "uppercase": {
-            "model": "granite4.1:8b",
-            "prompt": """You are a text processing tool. Convert the following input text to uppercase. Return only the uppercase text without any additional content or explanation.""",
-        },
-        "wordcount": {
-            "model": "granite4.1:8b",
-            "prompt": """You are a text analysis tool. Count the number of words in the following text. Return only the number without any additional content or explanation.""",
-        },
-        "reverse": {
-            "model": "granite4.1:8b",
-            "prompt": """You are a text manipulation tool. Reverse the following text character by character. Return only the reversed text without any additional content or explanation.""",
-        },
-    },
-    "output_dir": "output",
-}
-
-
-def execute_stage(stage_name: str, stage_config: dict[str, Any], input_text: str) -> str:
-    """Execute a single pipeline stage using the four framework."""
-    model_name = stage_config["model"]
-    model_id = model_name.split(":")[0] if ":" in model_name else model_name
-    MODEL_ID = os.getenv("FIVE_MODEL", model_id)
-    BASE_URL = os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1")
-    MAX_TOKENS = int(os.getenv("FIVE_MAX_TOKENS", "1024"))
-
-    system_prompt = stage_config["prompt"]
-
-    def invoke(messages):
-        result = litellm_invoke(
-            model=f"openai/{MODEL_ID}",
-            base_url=BASE_URL,
-            temperature=0.3,
-            max_tokens=MAX_TOKENS,
-            api_key="dummy",
-        )(messages)
-        return result
-
-    def parse(raw):
-        return regex_parse()(raw)
-
-    def validate(action):
-        return local_env()(action)
-
-    def emit(messages, outcome):
-        return save_trajectory()(messages, outcome)
-
-    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": input_text}]
-    path = run(
-        G=invoke,
-        V1=parse,
-        V2=validate,
-        emit=emit,
-        system=system_prompt,
-        prompt=input_text,
-        max_steps=10,
-    )
-
-    # Read the trajectory to get the output
-    trajectory = Path("trajectory.json")
-    if trajectory.exists():
-        import json
-        data = json.loads(trajectory.read_text())
-        # Get the final assistant message
-        for msg in reversed(data.get("messages", [])):
-            if msg.get("role") == "assistant":
-                return msg.get("content", "")
-
-    return "Stage output not found"
-
 
 def main():
-    parser = argparse.ArgumentParser(description=PIPELINE["description"])
-    parser.add_argument("--topic", required=True, help="Pipeline topic/input")
-    parser.add_argument("--endpoint", default=os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1"))
+    parser = argparse.ArgumentParser(description="Pipeline that translates text to uppercase, reverses it, and counts words")
+    parser.add_argument("--goal", required=True, help="The goal to achieve")
+    parser.add_argument("--max-steps", type=int, default=100, help="Max steps")
     args = parser.parse_args()
 
-    topic = args.topic
-    slug = slugify(topic)
-    output_dir = Path(PIPELINE["output_dir"]) / slug
+    MODEL_ID = os.getenv("FIVE_MODEL", "granite4.1:8b")
+    BASE_URL = os.getenv("FIVE_BASE_URL", "http://localhost:8080/v1")
 
-    print(f"Topic: {topic}")
-    print(f"Slug: {slug}")
-    print(f"Output dir: {output_dir}")
-    print()
+    system = """You are an autonomous development agent.
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+Goal: Implement the user's request by writing code, committing, and pushing.
 
-    # Save the topic
-    (output_dir / "topic.txt").write_text(topic)
+Stages to follow:
+    - setup: Create input text file and processing script (max 10 turns, validate: test -f input.txt && test -f transform.sh)
+    - transform: Apply uppercase transformation, reverse the text, and count words (max 10 turns, validate: test -f output.txt && test -f word_count.txt)
+    - verify: Verify transformations are correct: check uppercase, reversal, and word count (max 10 turns, validate: bash -c )
 
-    # Execute pipeline stages
-    current_input = topic
-    stage_names = list(PIPELINE["stages"].keys())
+Use bash commands to:
+- Write/modify files with cat, echo, or python -c
+- Run git add, git commit, git push
+- Execute tests, linters, builds
+- Call other LLMs via curl if needed
 
-    for i, stage_name in enumerate(stage_names):
-        stage_config = PIPELINE["stages"][stage_name]
-        output_file = output_dir / f"{stage_name}.md"
+Each step, output a bash command in a code block. The system will execute it and show you the result. Continue until the goal is achieved.
 
-        print(f"Stage {i+1}/{len(stage_names)}: {stage_name}")
-        print("-" * 40)
+When done, output: DONE
+"""
 
-        t0 = time.time()
-        output = execute_stage(stage_name, stage_config, current_input)
-        elapsed = time.time() - t0
-
-        output_file.write_text(output)
-        print(f"  Output: {output_file} ({elapsed:.1f}s)")
-        print()
-
-        current_input = output
-
-    # Save final output
-    final_file = output_dir / "essay.md"
-    final_file.write_text(current_input)
-
-    print("=" * 40)
-    print("COMPLETE")
-    print("=" * 40)
-    print(f"Topic: {topic}")
-    print()
-    for stage_name in stage_names:
-        file_path = output_dir / f"{stage_name}.md"
-        print(f"{stage_name.capitalize()}: {file_path}")
-    print()
-
-
-def slugify(text: str) -> str:
-    """Convert text to a filesystem-friendly slug."""
-    import re
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9]+", "-", text)
-    text = re.sub(r"-+", "-", text)
-    text = text.strip("-")
-    return text
+    run(
+        G=litellm_invoke(f"openai/{MODEL_ID}", base_url=BASE_URL, api_key="dummy"),
+        V1=regex_parse(),
+        V2=local_env(),
+        emit=save_trajectory(),
+        system=system,
+        prompt=args.goal,
+        max_steps=args.max_steps,
+    )
 
 
 if __name__ == "__main__":

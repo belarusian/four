@@ -181,7 +181,7 @@ When done, output: DONE
 """
 
     run(
-        G=litellm_invoke(f"openai/{{MODEL_ID}}", base_url=BASE_URL),
+        G=litellm_invoke(f"openai/{{MODEL_ID}}", base_url=BASE_URL, api_key="dummy"),
         V1=regex_parse(),
         V2=local_env(),
         emit=save_trajectory(),
