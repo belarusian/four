@@ -1,0 +1,9 @@
+{
+  "version": 0,
+  "rounds": 1,
+  "ouroboros_fixes": 0,
+  "outcome": "success",
+  "validators": [],
+  "claim": "just a test",
+  "user_prompt": "Create a simple autonomous pipeline with one stage called 'test' that has 2 turns. Description: just a test."
+}
