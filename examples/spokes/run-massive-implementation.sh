@@ -2,7 +2,7 @@
 set -e
 
 # ── Defaults ────────────────────────────────────────────────────────────────
-VARIANT="${VARIANT:-context-aware}"          # massive | context-aware
+VARIANT="${VARIANT:-long-running}"           # massive | context-aware | long-running
 PROJECT_DIR="${PROJECT_DIR:-$HOME/Research/autonomous-project}"
 PROJECT_NAME="${PROJECT_NAME:-autonomous-project}"
 GOAL="${GOAL:-}"
@@ -13,7 +13,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --goal GOAL          Project description (required, or set GOAL env var)"
-    echo "  --variant VARIANT    'massive' (single model) or 'context-aware' (two-model fallback, default)"
+    echo "  --variant VARIANT    'massive' (single model), 'context-aware' (two-model), or 'long-running' (two-model + summarization, default)"
     echo "  --project-dir DIR    Working directory (default: ~/Research/autonomous-project)"
     echo "  --project-name NAME  GitHub repo name (default: autonomous-project)"
     echo "  --help               Show this help"
@@ -51,8 +51,11 @@ case "$VARIANT" in
     context-aware)
         SPOKE="$SPOKE_DIR/context-aware-implementation.py"
         ;;
+    long-running)
+        SPOKE="$SPOKE_DIR/long-running-implementation.py"
+        ;;
     *)
-        echo "Error: unknown variant '$VARIANT' (use 'massive' or 'context-aware')"
+        echo "Error: unknown variant '$VARIANT' (use 'massive', 'context-aware', or 'long-running')"
         exit 1
         ;;
 esac
