@@ -1,13 +1,23 @@
 #!/bin/bash
 
-# Read input from input.txt
-INPUT=$(cat input.txt)
+# Read input file
+INPUT="input.txt"
+OUTPUT="output.txt"
+WORD_COUNT="word_count.txt"
 
-# 1. Apply uppercase transformation and save to output.txt
-echo "$INPUT" | tr '[:lower:]' '[:upper:]' > output.txt
+# Apply uppercase transformation
+UPPERCASE=$(cat "$INPUT" | tr '[:lower:]' '[:upper:]')
 
-# 2. Reverse the text (reverse the entire string)
-echo "$INPUT" | rev >> output.txt
+# Reverse the text (character-wise reversal)
+REVERSED=$(echo "$UPPERCASE" | rev)
 
-# 3. Count words and save to word_count.txt
-echo "$INPUT" | wc -w > word_count.txt
+# Write the reversed uppercase text to output.txt
+echo "$REVERSED" > "$OUTPUT"
+
+# Count words
+WORDS=$(cat "$INPUT" | wc -w | tr -d ' ')
+echo "$WORDS" > "$WORD_COUNT"
+
+echo "Transformations complete."
+echo "Output: $(cat $OUTPUT)"
+echo "Word count: $(cat $WORD_COUNT)"
