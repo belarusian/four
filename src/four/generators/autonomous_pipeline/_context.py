@@ -44,8 +44,8 @@ def _read_repo(repo_path: Path) -> str:
 
 def build_autonomous_pipeline_context() -> GenerationContext:
     """Build the generation context by sourcing from our repos."""
-    # Find the repos relative to this file
-    four_root = Path(__file__).parent.parent.parent.parent.parent  # /Users/av4nda/Research/four
+    four_root = Path(__file__).parent.parent.parent.parent.parent
+    ai_root = Path.home() / "AI"
 
     domain_sections = [
         DomainSection(
@@ -54,11 +54,11 @@ def build_autonomous_pipeline_context() -> GenerationContext:
         ),
         DomainSection(
             heading="Source: experiments (bash pipelines)",
-            content=_read_repo(Path("/Users/av4nda/AI/experiments")),
+            content=_read_repo(ai_root / "experiments"),
         ),
         DomainSection(
             heading="Source: idea-forge (structure)",
-            content=_read_repo(Path("/Users/av4nda/AI/idea-forge")),
+            content=_read_repo(ai_root / "idea-forge"),
         ),
         DomainSection(
             heading="Autonomous Pipeline Pattern",
