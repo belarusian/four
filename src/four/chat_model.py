@@ -106,3 +106,56 @@ def litellm_toolcall_invoke(
     """
     impl = _ChatCompletionsToolcall(model, **model_kwargs)
     return impl._invoke
+
+
+def context_aware_invoke(
+    fast_model: str,
+    large_model: str,
+    *,
+    fast_base_url: str = "",
+    large_base_url: str = "",
+    context_limit: int = 50_000,
+    **model_kwargs,
+):
+    """G that switches to large-context model when conversation grows too big.
+
+    Estimates token count from message text (~4 chars/token). When context
+    exceeds context_limit, switches to the large-context model. When even
+    the large model can't handle it, compresses history by keeping system
+    + last 8 messages.
+
+    Args:
+        fast_model: Model ID for normal operations (e.g., "openai/fast-qwen")
+        large_model: Model ID for large context (e.g., "openai/qwen")
+        fast_base_url: API URL for fast model
+        large_base_url: API URL for large model
+        context_limit: Token threshold to switch models (default 50k)
+        **model_kwargs: Additional kwargs passed to litellm
+    """
+    import logging
+    logger = logging.getLogger("four.model")
+
+    fast_impl = _ChatCompletionsText(fast_model, base_url=fast_base_url, **model_kwargs)
+    large_impl = _ChatCompletionsText(large_model, base_url=large_base_url, **model_kwargs)
+
+    def _estimate_tokens(messages: list[dict]) -> int:
+        """Rough token estimate: ~4 chars per token."""
+        total = sum(len(str(m.get("content", ""))) for m in messages)
+        return total // 4
+
+    def _invoke(messages: list[dict]) -> Ok[str] | Err[str]:
+        estimated = _estimate_tokens(messages)
+
+        if estimated > 200_000:
+            logger.warning("Context %d tokens too large, compressing history", estimated)
+            system = [m for m in messages if m.get("role") == "system"]
+            recent = messages[-8:]
+            return large_impl._invoke(system + recent)
+
+        if estimated > context_limit:
+            logger.info("Context %d tokens > %d, switching to large model", estimated, context_limit)
+            return large_impl._invoke(messages)
+
+        return fast_impl._invoke(messages)
+
+    return _invoke

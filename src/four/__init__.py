@@ -9,7 +9,7 @@ emit     : IO  -- (messages, outcome) → Path
 """
 
 from .core import Err, Ok, Result, run, save_trajectory, AbortError, retry_invoke, Invoke, Validate
-from .chat_model import BASH_TOOL, litellm_invoke, litellm_toolcall_invoke
+from .chat_model import BASH_TOOL, litellm_invoke, litellm_toolcall_invoke, context_aware_invoke
 from .response_model import BASH_TOOL_RESPONSE_API, http_response_invoke
 from .parse import regex_parse, toolcall_parse, toolcall_response_parse
 from .env import local_env, local_env_response
@@ -35,6 +35,7 @@ __all__ = [
     "BASH_TOOL_RESPONSE_API",
     "litellm_invoke",
     "litellm_toolcall_invoke",
+    "context_aware_invoke",
     "http_response_invoke",
     "regex_parse",
     "toolcall_parse",
