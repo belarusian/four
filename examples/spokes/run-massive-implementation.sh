@@ -101,6 +101,7 @@ grep -q "^trajectories/$" .gitignore 2>/dev/null || echo "trajectories/" >> .git
 cleanup() {
     echo "Pushing to remote..."
     git add -A 2>/dev/null || true
+    git reset trajectories/ 2>/dev/null || true
     git commit -m "autonomous: save progress" 2>/dev/null || true
     if ! git remote -v | grep -q "origin"; then
         REMOTE_URL="https://github.com/belarusian/${PROJECT_NAME}.git"
