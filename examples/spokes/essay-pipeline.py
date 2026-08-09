@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 # Add four to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "AI" / "four"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from four.core import run, Ok, Err
 from four.chat_model import litellm_invoke

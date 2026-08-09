@@ -177,13 +177,13 @@ def run(
 
 
 def save_trajectory(
-    output_dir: Path | str = "trajectories",
+    output_dir: Path | str = "~/AI/compsci.boutique/trajectories",
 ) -> Emit:
     """Return an emit function that saves trajectories as JSON."""
-    out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
+    out = Path(output_dir).expanduser()
 
     def _emit(messages: list[dict], outcome: str) -> Path:
+        out.mkdir(parents=True, exist_ok=True)
         idx = len(list(out.glob("*.json")))
         path = out / f"trajectory_{idx:04d}.json"
         path.write_text(

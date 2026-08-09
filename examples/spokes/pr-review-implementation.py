@@ -15,7 +15,7 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "AI" / "four"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 
 from four.core import run, Ok, Err
 from four.chat_model import context_aware_invoke
