@@ -23,7 +23,7 @@ from four.core import save_trajectory
 
 def main():
     parser = argparse.ArgumentParser(description="PR review pipeline that verifies code and approves/rejects.")
-    parser.add_argument("--pr", required=True, help="PR number to review")
+    parser.add_argument("--goal", required=True, help="PR number to review (passed as --goal from runner)")
     parser.add_argument("--max-steps", type=int, default=50, help="Max steps")
     args = parser.parse_args()
 
@@ -90,7 +90,7 @@ When done, output: DONE
         V2=local_env(),
         emit=save_trajectory(),
         system=system,
-        prompt=f"Review PR #{args.pr}. Read the commits, run tests, verify code quality. Approve if good, comment with issues if not.",
+        prompt=f"Review PR #{args.goal}. Read the commits, run tests, verify code quality. Approve if good, comment with issues if not.",
         max_steps=args.max_steps,
     )
     print(f"Trajectory saved to: {path}")
