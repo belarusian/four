@@ -93,6 +93,10 @@ if [ ! -d ".git" ]; then
     git commit --allow-empty -m "initial"
 fi
 
+# Ensure trajectories directory exists and is ignored
+mkdir -p trajectories
+grep -q "^trajectories/$" .gitignore 2>/dev/null || echo "trajectories/" >> .gitignore
+
 # ── Push to remote on exit ──────────────────────────────────────────────────
 cleanup() {
     echo "Pushing to remote..."
