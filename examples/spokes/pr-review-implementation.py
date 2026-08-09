@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-Autonomous pipeline: PR review (reads PR, verifies code, approves/rejects)
+Autonomous pipeline: PR review and merge (reads open PRs, verifies, merges)
 
-Reviews a PR by reading its commits, running tests, and verifying code quality.
-This is the second half of the dual pipeline: stream → PR → review → merge.
+Reviews open PRs by reading their commits, running tests, and merging approved ones.
+This is Phase 3 of the dual pipeline:
+    Phase 1: Stream (commits grow out) — PROVEN
+    Phase 2: PR consolidation (reads anchors, creates PRs) — PROVEN
+    Phase 3: Review (reads PRs, merges to main) — TESTING NOW
 """
 
 import argparse
@@ -22,9 +25,9 @@ from four.core import save_trajectory
 
 
 def main():
-    parser = argparse.ArgumentParser(description="PR review pipeline that verifies code and approves/rejects.")
-    parser.add_argument("--goal", required=True, help="PR number to review (passed as --goal from runner)")
-    parser.add_argument("--max-steps", type=int, default=50, help="Max steps")
+    parser = argparse.ArgumentParser(description="PR review and merge pipeline.")
+    parser.add_argument("--goal", required=True, help="Review goal (e.g., 'review all open PRs')")
+    parser.add_argument("--max-steps", type=int, default=200, help="Max steps")
     args = parser.parse_args()
 
     MODEL_ID = os.getenv("FIVE_MODEL", "fast-qwen")
@@ -58,9 +61,9 @@ def main():
             print(f"  [G step {step_num[0]}] ({elapsed:.1f}s) ERR: {result.error[:100]}")
         return result
 
-    system = """You are an autonomous PR review agent.
+    system = """You are an autonomous PR review and merge agent.
 
-CORE PRINCIPLE: Read the evidence, verify the code. The PR is your source of truth.
+CORE PRINCIPLE: Read each PR, verify the code works, merge if good.
 
 RULES:
 - Output ONE bash command per step in a code block.
@@ -69,17 +72,28 @@ RULES:
 - Work in the current directory only. NEVER use cd to change directories.
 
 REVIEW APPROACH:
-1. Fetch the PR: gh pr view <PR_NUM> --json title,body,commits,files
-2. Read the commits and changed files
-3. Run tests: python -m pytest tests/ -v
-4. Run linters: flake8 personal_index/ (if available)
-5. Verify code quality:
-   - Tests pass
-   - No regressions
-   - Code follows project conventions
-   - Documentation is adequate
-6. If everything passes: gh pr review <PR_NUM> --approve --body "Reviewed and approved"
-7. If there are issues: gh pr review <PR_NUM> --comment --body "Issues found: ..."
+1. List open PRs: gh pr list --state open
+2. For each PR:
+   a. Read details: gh pr view <NUM> --json title,body,commits,files
+   b. Checkout the PR branch: gh pr checkout <NUM>
+   c. Run tests: python -m pytest tests/ -v --tb=short -q 2>&1 | tail -20
+   d. If tests pass: gh pr merge <NUM> --squash --delete-branch
+   e. If tests fail: gh pr comment <NUM> --body "Tests failed: ..."
+   f. Return to main: git checkout main
+3. Track which PRs have been processed
+4. If a PR has no tests or trivial changes, approve and merge directly
+
+EXAMPLE COMMANDS:
+- gh pr list --state open: List open PRs
+- gh pr view <NUM> --json title,body,commits,files: Read PR details
+- gh pr checkout <NUM>: Checkout PR branch
+- python -m pytest tests/ -v --tb=short -q: Run tests
+- gh pr merge <NUM> --squash --delete-branch: Merge PR with squash
+- gh pr comment <NUM> --body "...": Comment on PR
+- git checkout main: Return to main
+
+IMPORTANT: Be thorough but efficient. Run the full test suite for each PR.
+Only merge if tests pass. Comment with specific failures if they don't.
 
 When done, output: DONE
 """
@@ -90,7 +104,7 @@ When done, output: DONE
         V2=local_env(),
         emit=save_trajectory(),
         system=system,
-        prompt=f"Review PR #{args.goal}. Read the commits, run tests, verify code quality. Approve if good, comment with issues if not.",
+        prompt=args.goal,
         max_steps=args.max_steps,
     )
     print(f"Trajectory saved to: {path}")
