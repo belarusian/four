@@ -43,7 +43,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "AI" / "four
 from four.core import run, Ok, Err
 from four.chat_model import context_aware_invoke
 from four.parse import regex_parse
-from four.env import local_env
+from four.env import local_env, pr_gate_env
 from four.core import save_trajectory
 
 
@@ -198,11 +198,20 @@ RULES:
 - Commit messages must describe WHAT changed and WHY.
 - Continue until the goal is fully achieved.
 
+PR GATING — semantic cutoff:
+When a logical batch of work is complete (e.g., a feature implemented, tests passing,
+a module finished), signal PR creation with:
+    echo 'PR_GATE: <reason for this batch>'
+
+The system will create a PR for all commits since the last gate. You decide when
+a batch is semantically complete — not by commit count, but by meaning.
+
 Stages to follow:
     - analyze: Explore the codebase, read git log, identify what exists and what's needed. Write findings to output/analysis.md
-    - plan: Create a detailed implementation plan. Break into small batches (each batch = one commit). Write to output/plan.md
+    - plan: Create a detailed implementation plan. Break into small batches. Write to output/plan.md
     - implement: Execute the plan incrementally. Each commit is a gate: write code, test, commit, move to next.
     - validate: Run tests, linters, builds. Fix issues. Ensure clean state.
+    - gate: When a logical batch is complete, signal: echo 'PR_GATE: <reason>'
 
 IMPORTANT: Work in the current directory only. NEVER use cd to change directories.
 The repository state shown above is your durable memory — use it to know what's been done.
@@ -210,10 +219,13 @@ The repository state shown above is your durable memory — use it to know what'
 When done, output: DONE
 """
 
+    base_v2 = local_env()
+    V2 = pr_gate_env(base_v2)
+
     path = run(
         G=debug_g,
         V1=regex_parse(),
-        V2=local_env(),
+        V2=V2,
         emit=save_trajectory(),
         system=system,
         prompt=args.goal,

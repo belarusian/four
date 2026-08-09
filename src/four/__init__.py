@@ -12,7 +12,7 @@ from .core import Err, Ok, Result, run, save_trajectory, AbortError, retry_invok
 from .chat_model import BASH_TOOL, litellm_invoke, litellm_toolcall_invoke, context_aware_invoke, summarizing_invoke
 from .response_model import BASH_TOOL_RESPONSE_API, http_response_invoke
 from .parse import regex_parse, toolcall_parse, toolcall_response_parse
-from .env import local_env, local_env_response
+from .env import local_env, local_env_response, pr_gate_env
 from .super_spoke import (
     super_env,
     super_invoke,
@@ -43,6 +43,7 @@ __all__ = [
     "toolcall_response_parse",
     "local_env",
     "local_env_response",
+    "pr_gate_env",
     "super_env",
     "super_invoke",
     "super_response_invoke",
