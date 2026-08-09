@@ -54,6 +54,9 @@ case "$VARIANT" in
     pr-consolidation)
         SPOKE="$SPOKE_DIR/pr-consolidation-implementation.py"
         ;;
+    pr-review)
+        SPOKE="$SPOKE_DIR/pr-review-implementation.py"
+        ;;
     context-aware)
         SPOKE="$SPOKE_DIR/context-aware-implementation.py"
         ;;
