@@ -28,6 +28,7 @@ def regex_parse(
             r"```sh\s*\n(.*?)\n```",
             r"```\s+(.*?)```",
             r"```\s*\n(.*?)\n```",           # fallback: any code block
+            r"<code>\s*(.*?)\s*</code>",     # HTML code tags
         ]
     else:
         patterns = [pattern]
