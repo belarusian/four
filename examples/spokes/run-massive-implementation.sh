@@ -60,6 +60,11 @@ case "$VARIANT" in
     context-aware)
         SPOKE="$SPOKE_DIR/context-aware-implementation.py"
         ;;
+    stream)
+        SPOKE="$SPOKE_DIR/stream-implementation.py"
+        ;;
+        SPOKE="$SPOKE_DIR/context-aware-implementation.py"
+        ;;
     durable-state)
         SPOKE="$SPOKE_DIR/durable-state-implementation.py"
         ;;
