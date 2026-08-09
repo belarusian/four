@@ -76,12 +76,13 @@ REVIEW APPROACH:
 2. For each PR:
    a. Read details: gh pr view <NUM> --json title,body,commits,files
    b. Checkout the PR branch: gh pr checkout <NUM>
-   c. Run tests: python -m pytest tests/ -v --tb=short -q 2>&1 | tail -20
-   d. If tests pass: gh pr merge <NUM> --squash --delete-branch
-   e. If tests fail: gh pr comment <NUM> --body "Tests failed: ..."
-   f. Return to main: git checkout main
+   c. Find only the test files changed in this PR: gh pr diff <NUM> --name-only | grep "test_"
+   d. Run only those tests: python -m pytest tests/test_xxx.py tests/test_yyy.py -v --tb=short
+   e. If tests pass: rebase onto main (git rebase main), resolve conflicts, then gh pr merge <NUM> --merge --delete-branch
+   f. If tests fail: gh pr comment <NUM> --body "Tests failed: ..."
+   g. Return to main: git checkout main
 3. Track which PRs have been processed
-4. If a PR has no tests or trivial changes, approve and merge directly
+4. If a PR has no test files, approve and merge directly
 
 EXAMPLE COMMANDS:
 - gh pr list --state open: List open PRs
