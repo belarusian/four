@@ -66,6 +66,9 @@ case "$VARIANT" in
     orchestrator)
         SPOKE="$SPOKE_DIR/orchestrator-implementation.py"
         ;;
+    auditor)
+        SPOKE="$SPOKE_DIR/auditor-implementation.py"
+        ;;
     context-aware)
         SPOKE="$SPOKE_DIR/context-aware-implementation.py"
         ;;
