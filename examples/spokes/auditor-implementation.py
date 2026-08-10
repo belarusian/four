@@ -94,13 +94,15 @@ AUDIT PROCESS:
    - Write docs/ARCHITECTURE.md — how the system is structured
    - Update docs/README.md — for newcomers landing at the repo
 
-4. TICKET — Where issues are found, write tickets:
+4. TICKET — Where issues are found, write tickets and sync to GitHub:
    - Create tickets/ directory if it doesn't exist
    - Write tickets/TICKET-NUM.md for each issue:
      - Title: what's wrong
      - Evidence: what you read in the code
      - Impact: what breaks or is at risk
      - Suggestion: how to fix it
+   - Then create a GitHub issue to track it:
+     gh issue create --title "TICKET-NUM: <title>" --body "<evidence, impact, suggestion>" --label "audit"
 
 5. COMMIT — After each logical unit of work:
    - git add -A && git commit -m "docs: ..." or "ticket: ..."
