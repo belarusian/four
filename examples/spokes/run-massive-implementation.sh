@@ -63,6 +63,15 @@ case "$VARIANT" in
     pr-fix)
         SPOKE="$SPOKE_DIR/pr-fix-implementation.py"
         ;;
+    orchestrator)
+        SPOKE="$SPOKE_DIR/orchestrator-implementation.py"
+        ;;
+    validator)
+        SPOKE="$SPOKE_DIR/validator-implementation.py"
+        ;;
+    auditor)
+        SPOKE="$SPOKE_DIR/auditor-implementation.py"
+        ;;
     context-aware)
         SPOKE="$SPOKE_DIR/context-aware-implementation.py"
         ;;
