@@ -13,7 +13,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --goal GOAL          Project description (required, or set GOAL env var)"
-    echo "  --variant VARIANT    'stream' (unimpeded code flow, default), 'documentation' (post-hoc docs), 'pr-consolidation' (post-hoc PRs)"
+    echo "  --variant VARIANT    'stream' (unimpeded code flow), 'documentation', 'docs-review', 'pr-consolidation' (post-hoc PRs)"
     echo "  --project-dir DIR    Working directory (default: ~/Research/autonomous-project)"
     echo "  --project-name NAME  GitHub repo name (default: autonomous-project)"
     echo "  --help               Show this help"
@@ -21,7 +21,7 @@ usage() {
     echo "Examples:"
     echo "  $0 --goal 'Build a CLI tool called foo with bar and baz features'"
     echo "  VARIANT=documentation $0 --goal 'Document the existing codebase'"
-    echo "  VARIANT=pr-consolidation $0 --goal 'Consolidate commits into semantic PRs'"
+    echo "  VARIANT=docs-review $0 --goal 'Review docs, add missing coverage'"
     exit 0
 }
 
@@ -51,11 +51,17 @@ case "$VARIANT" in
     documentation)
         SPOKE="$SPOKE_DIR/documentation-implementation.py"
         ;;
+    docs-review)
+        SPOKE="$SPOKE_DIR/docs-review-implementation.py"
+        ;;
     pr-consolidation)
         SPOKE="$SPOKE_DIR/pr-consolidation-implementation.py"
         ;;
     pr-review)
         SPOKE="$SPOKE_DIR/pr-review-implementation.py"
+        ;;
+    pr-fix)
+        SPOKE="$SPOKE_DIR/pr-fix-implementation.py"
         ;;
     context-aware)
         SPOKE="$SPOKE_DIR/context-aware-implementation.py"
@@ -73,7 +79,7 @@ case "$VARIANT" in
         SPOKE="$SPOKE_DIR/massive-feature-implementation.py"
         ;;
     *)
-        echo "Error: unknown variant '$VARIANT' (use 'stream', 'documentation', 'pr-consolidation', 'context-aware', 'durable-state', 'long-running', or 'massive')"
+        echo "Error: unknown variant '$VARIANT' (use 'stream', 'documentation', 'docs-review', 'pr-consolidation', 'context-aware', 'durable-state', 'long-running', or 'massive')"
         exit 1
         ;;
 esac
